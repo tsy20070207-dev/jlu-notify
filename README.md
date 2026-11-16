@@ -197,6 +197,9 @@ python3 cli.py stats            # 看库里有多少条
 
 ## 部署
 
+> 三选一：**GitHub Actions（推荐，电脑关机也能收）**、macOS launchd、Linux systemd。
+> 同一条通知两边各有一份数据库，同时开会重复推送。
+
 ### macOS（launchd，每 5 分钟一轮）
 
 ```bash
@@ -227,8 +230,8 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 ### GitHub Actions（推荐：不用自己电脑常开）
 
 仓库自带 `.github/workflows/notify.yml`，每 5 分钟在 GitHub 的免费机器上跑一次
-`cli.py run --once`，你的电脑可以随便关。**和下面的 launchd / systemd 二选一**，
-两套同时跑会重复推送（各有一份数据库）。
+`cli.py run --once`，你的电脑可以随便关。和上面的 macOS launchd、下面的 Linux systemd
+**三选一**，同时开两套会重复推送（各有一份数据库）。
 
 > 本机这次是从 launchd 切过来的：`cn.jlu.notify` 已 `launchctl disable`，
 > plist 挪到了 `~/Library/LaunchAgents/disabled/`，登录也不会自启。
@@ -236,7 +239,6 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 > `mv ~/Library/LaunchAgents/disabled/cn.jlu.notify.plist ~/Library/LaunchAgents/`、
 > `launchctl enable gui/$(id -u)/cn.jlu.notify`、
 > `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/cn.jlu.notify.plist`。
-
 
 1. 建仓库并推上去（`main` 分支已含 workflow）。
 2. 配置进 Secret（`config.json` 在 `.gitignore` 里，绝不进仓库）：
