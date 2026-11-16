@@ -1,0 +1,15 @@
+# 含推送令牌的运行时配置 —— 绝不外传
+# （GitHub Actions 里由 Secret CONFIG_JSON_B64 在运行时还原，不进仓库）
+config.json
+
+# 数据库、通道熔断状态、OA dump
+data/
+
+# 自动发现产物（本地临时文件，不进仓库）
+sources_candidates.json
+
+# 日志
+*.log
+
+__pycache__/
+.DS_Store

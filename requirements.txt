@@ -1,0 +1,5 @@
+# 核心功能（抓取 / 解析 / 去重 / 推送）只用 Python 标准库，无需安装任何东西。
+# Python 3.7+ 即可（3.14 实测通过）。
+
+# 只有这两个脚本需要 Playwright：probe_oa.py（校内探查 OA）和 login_once.py（复用登录态）
+# playwright>=1.40

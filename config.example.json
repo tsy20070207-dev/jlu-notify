@@ -1,0 +1,44 @@
+{
+  "db_path": "data/notify.db",
+  "request": {
+    "timeout": 15,
+    "retries": 2,
+    "workers": 4,
+    "jitter_ms": [0, 1500]
+  },
+  "schedule": {
+    "level_a_minutes": 5,
+    "level_b_minutes": 30,
+    "quiet_hours": ["23:30", "07:00"],
+    "max_run_seconds": 240
+  },
+  "push": {
+    "merge": true,
+    "max_items": 8,
+    "max_chars": 1800,
+    "title_prefix": "吉大通知",
+    "first_run_baseline_only": true,
+    "max_per_run": 60
+  },
+  "channels": {
+    "wecom": {
+      "enabled": true,
+      "webhook": "把企微群机器人 webhook 粘到这里，或只填 key= 后面那串",
+      "max_chars": 3800
+    },
+    "wxpusher": {
+      "enabled": true,
+      "spt": "SPT_扫码拿到的令牌粘这里（见 README 第 1 步）",
+      "app_token": "AT_把你的 appToken 填这里",
+      "uids": ["UID_把你的UID填这里"],
+      "topic_ids": [],
+      "max_chars": 1700
+    },
+    "pushplus": {
+      "enabled": false,
+      "token": "",
+      "topic": "",
+      "max_chars": 1700
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "_comment": "sources.json 的最小示例。真实清单用 python3 discover.py --write 自动生成，然后手工删掉不关心的学院。",
+  "sources": [
+    {
+      "name": "学校通知公告",
+      "url": "https://www.jlu.edu.cn/index/tzgg.htm",
+      "level": "A",
+      "type": "site",
+      "enabled": true
+    },
+    {
+      "name": "本科生院",
+      "url": "https://jwc.jlu.edu.cn/zxzx/tzgg.htm",
+      "level": "A",
+      "type": "site",
+      "enabled": true
+    },
+    {
+      "name": "化学学院",
+      "url": "https://chem.jlu.edu.cn/xwtz/tzgg.htm",
+      "level": "B",
+      "type": "site",
+      "enabled": true
+    },
+    {
+      "name": "OA 办公网",
+      "url": "http://oa.jlu.edu.cn/",
+      "level": "A",
+      "type": "oa",
+      "enabled": false,
+      "_comment": "内网源，先在校内跑 probe_oa.py 再打开"
+    }
+  ]
+}
