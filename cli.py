@@ -153,12 +153,12 @@ def finish_and_push(args, cfg, store, fresh, errors, baseline_sources):
     pending = store.pending(limit=max_per_run)
     if not pending:
         log("本轮没有需要推送的新通知")
-        return report(errors, ok=True)
+        return report(errors, ok=True, limit=source_error_tolerance(cfg))
 
     quiet = (cfg.get("schedule") or {}).get("quiet_hours")
     if notifier.in_quiet_hours(quiet) and not args.no_quiet:
         log("免打扰时段 {}，{} 条留在队列，时段结束后合并成一条推送".format(quiet, len(pending)), "SKIP")
-        return report(errors, ok=True)
+        return report(errors, ok=True, limit=source_error_tolerance(cfg))
 
     text, used, summary = notifier.build_message(pending, cfg)
     if not used:
@@ -176,14 +176,25 @@ def finish_and_push(args, cfg, store, fresh, errors, baseline_sources):
             "再用 python3 cli.py test-push 验证", "WARN")
     else:
         log("所有通道都失败了，条目留在队列里下轮重试", "WARN")
-    return report(errors, ok=any_ok)
+    return report(errors, ok=any_ok, limit=source_error_tolerance(cfg))
 
 
-def report(errors, ok=True):
+def source_error_tolerance(cfg):
+    """单轮允许多少个源抓取失败而不算整轮失败（0 = 一个都不许）。"""
+    raw = ((cfg or {}).get("run") or {}).get("max_source_errors", 3)
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 3
+
+
+def report(errors, ok=True, limit=0):
     if errors:
         log("{} 个源抓取失败：{}".format(
             len(errors), "、".join(name for name, _ in errors[:8])), "WARN")
-        return 1
+        if len(errors) > limit:              # 超过容忍数：真故障，照旧标红
+            return 1
+        log("失败 {} 个 ≤ 容忍上限 {}，本轮不算运行错误".format(len(errors), limit), "WARN")
     return 0 if ok else 1
 
 

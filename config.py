@@ -15,6 +15,13 @@ SOURCES_PATH = pj("sources.json")
 
 DEFAULT_CONFIG = {
     "db_path": "data/notify.db",
+    "run": {
+        # 单轮允许多少个源抓取失败：≤ 这个数只打 WARN，不把整轮判成运行失败。
+        # 90 多个源 × 每 5/30 分钟跑，偶发 1~3 个校内站点连接重置是常态，
+        # 不该为此标红整个 workflow 并发「运行失败」邮件。
+        # 设成 0 = 恢复严格模式：任何一个源失败都算失败。
+        "max_source_errors": 3,
+    },
     "request": {
         "timeout": 15,
         "retries": 2,

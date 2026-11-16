@@ -384,7 +384,7 @@
       "url": "https://news.jlu.edu.cn/zthd1/zggcdcl100zn.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "机械与航空航天工程学院",
@@ -412,7 +412,7 @@
       "url": "https://dag.jlu.edu.cn/ztzt.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "植物科学学院",
