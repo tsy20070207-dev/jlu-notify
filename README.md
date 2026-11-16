@@ -224,7 +224,37 @@ EOF
 launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 ```
 
-### Linux（systemd timer）
+### GitHub Actions（推荐：不用自己电脑常开）
+
+仓库自带 `.github/workflows/notify.yml`，每 5 分钟在 GitHub 的免费机器上跑一次
+`cli.py run --once`，你的电脑可以随便关。**和下面的 launchd / systemd 二选一**，
+两套同时跑会重复推送（各有一份数据库）。
+
+1. 建仓库并推上去（`main` 分支已含 workflow）。
+2. 配置进 Secret（`config.json` 在 `.gitignore` 里，绝不进仓库）：
+   ```bash
+   gh secret set CONFIG_JSON_B64 -R 你的用户名/jlu-notify -b "$(base64 -i config.json | tr -d '\n')"
+   ```
+   或网页：Settings → Secrets and variables → Actions → New repository secret，
+   名字 `CONFIG_JSON_B64`，值是 `base64 -i config.json` 的输出（一行）。
+3. 去重数据库放在 `state` 分支，workflow 每轮跑完 force push 回一条提交。
+   第一次建议把本地 `data/notify.db` 推上去当基线，否则第一轮会按「首次运行」重新建基线；
+   不种也行 —— 那样只影响「不补推历史通知」，不会出错。
+4. 手动验证：`gh workflow run notify.yml` → `gh run watch`，或 Actions 页面点 Run workflow。
+
+**必须知道的几个坑**
+
+| 事项 | 说明 |
+| --- | --- |
+| 时区 | workflow 里的 `TZ: Asia/Shanghai` 别删。runner 是 UTC，删了免打扰 23:30–07:00 会错成北京时间 07:30–15:00 |
+| 额度 | 公开仓库 Actions 免费不限量；私有仓库每月 2000 分钟，而 `*/5` 每轮至少按 1 分钟计（≈8600 分钟/月）会超，私有请改成 `*/30`（≈1440 分钟/月） |
+| 延迟 | 官方 cron 最小 5 分钟，高峰期常延迟几分钟才启动，不是秒级实时 |
+| 60 天无活动 | GitHub 会自动停用定时任务并发邮件；本仓库每轮都在更新 `state` 分支，所以不会触发 |
+| `sources.json` | 已进仓库（只有公开栏目地址）；增删源直接改它提交即可 |
+| 换令牌 | 只更新 Secret，不用动代码 |
+| 并发 | workflow 已设 `concurrency`，同一时刻只会跑一个实例，避免同一条通知推两次 |
+
+
 
 ```ini
 # /etc/systemd/system/jlu-notify.service
@@ -305,7 +335,9 @@ jlu-notify/
 ├── config.py         配置加载与校验
 ├── channels/         wecom / wxpusher / pushplus
 ├── sources/          site（通用博达栏目）/ oa（内网）
-├── tests/            夹具冒烟测试（91 项，不联网）
+├── tests/            夹具冒烟测试（93 项，不联网）
+├── .github/workflows/ notify.yml（每 5 分钟推送）、test.yml（push 时跑测试）
+├── sources.json      92 个源（进仓库，只有公开地址）
 └── data/             notify.db、通道状态、dump（gitignore）
 ```
 
