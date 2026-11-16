@@ -230,6 +230,14 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 `cli.py run --once`，你的电脑可以随便关。**和下面的 launchd / systemd 二选一**，
 两套同时跑会重复推送（各有一份数据库）。
 
+> 本机这次是从 launchd 切过来的：`cn.jlu.notify` 已 `launchctl disable`，
+> plist 挪到了 `~/Library/LaunchAgents/disabled/`，登录也不会自启。
+> 想换回本机：先从 `state` 分支取回数据库（见本节末），再
+> `mv ~/Library/LaunchAgents/disabled/cn.jlu.notify.plist ~/Library/LaunchAgents/`、
+> `launchctl enable gui/$(id -u)/cn.jlu.notify`、
+> `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/cn.jlu.notify.plist`。
+
+
 1. 建仓库并推上去（`main` 分支已含 workflow）。
 2. 配置进 Secret（`config.json` 在 `.gitignore` 里，绝不进仓库）：
    ```bash
