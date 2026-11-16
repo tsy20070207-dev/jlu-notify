@@ -1,0 +1,46 @@
+name: 测试推送
+
+# 只用来验证「GitHub → WxPusher/企微 → 手机」这条链是通的，一次一条消息。
+# 单独成文件（不写进 notify.yml）是故意的：改动 notify.yml 会让 GitHub 重新注册
+# 它的 schedule 定时器，延迟计时归零。
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: 自定义测试内容（留空用默认）
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 还原配置（来自 Secret，仓库里没有令牌）
+        env:
+          CONFIG_JSON_B64: ${{ secrets.CONFIG_JSON_B64 }}
+        run: |
+          if [ -z "$CONFIG_JSON_B64" ]; then
+            echo "缺少 Secret CONFIG_JSON_B64，见 README「部署 · GitHub Actions」"
+            exit 1
+          fi
+          printf '%s' "$CONFIG_JSON_B64" | base64 -d > config.json
+          python3 -c "import json;c=json.load(open('config.json'))['channels'];print('启用通道:',[k for k,v in c.items() if v.get('enabled')])"
+
+      - name: 发测试消息
+        env:
+          TEXT: ${{ inputs.text }}
+        run: |
+          if [ -n "$TEXT" ]; then
+            python3 cli.py test-push --text "$TEXT"
+          else
+            python3 cli.py test-push
+          fi
