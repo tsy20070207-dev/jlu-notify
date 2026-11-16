@@ -229,8 +229,9 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 
 ### GitHub Actions（推荐：不用自己电脑常开）
 
-仓库自带 `.github/workflows/notify.yml`，每 5 分钟在 GitHub 的免费机器上跑一次
-`cli.py run --once`，你的电脑可以随便关。和上面的 macOS launchd、下面的 Linux systemd
+仓库自带 `.github/workflows/notify.yml`，定时在 GitHub 的免费机器上跑
+`cli.py run --once`，你的电脑可以随便关。默认 cron 是 15 分钟一次的**兜底**；
+要 5 分钟节奏就按下面「兜底：外部 5 分钟触发」加一个外部定时器。和上面的 macOS launchd、下面的 Linux systemd
 **三选一**，同时开两套会重复推送（各有一份数据库）。
 
 > 本机这次是从 launchd 切过来的：`cn.jlu.notify` 已 `launchctl disable`，
@@ -257,8 +258,8 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 | 事项 | 说明 |
 | --- | --- |
 | 时区 | workflow 里的 `TZ: Asia/Shanghai` 别删。runner 是 UTC，删了免打扰 23:30–07:00 会错成北京时间 07:30–15:00 |
-| 额度 | 公开仓库 Actions 免费不限量；私有仓库每月 2000 分钟，而 `2-59/5` 每轮至少按 1 分钟计（≈8600 分钟/月）会超，私有请改成 `3-59/30`（≈1440 分钟/月） |
-| 延迟 | cron 最小 5 分钟；官方文档说「整点是负载高峰，可能延迟甚至丢队列」，所以 cron 写成 `2-59/5`（:02 :07 … :57）避开整点。实际到达比发布晚 5–15 分钟属正常 |
+| 额度 | 公开仓库 Actions 免费不限量；私有仓库每月 2000 分钟，`7-59/15` 每轮至少按 1 分钟计（≈2900 分钟/月）刚好够，想保险可放成 `3-59/30`（≈1440 分钟/月） |
+| 延迟 | cron 最小 5 分钟；官方文档说「整点是负载高峰，可能延迟甚至丢队列」。所以默认 cron 是 `7-59/15`（:07 :22 :37 :52）当兜底，5 分钟节奏交给外部定时器。实测新仓库注册后 20 分钟 0 触发，属正常 |
 | 60 天无活动 | GitHub 会自动停用定时任务并发邮件；本仓库每轮都在更新 `state` 分支，所以不会触发 |
 | `sources.json` | 已进仓库（只有公开栏目地址）；增删源直接改它提交即可 |
 | 换令牌 | 只更新 Secret，不用动代码 |
@@ -373,7 +374,7 @@ jlu-notify/
 ├── channels/         wecom / wxpusher / pushplus
 ├── sources/          site（通用博达栏目）/ oa（内网）
 ├── tests/            夹具冒烟测试（93 项，不联网）
-├── .github/workflows/ notify.yml（每 5 分钟推送）、test.yml（push 时跑测试）
+├── .github/workflows/ notify.yml（定时推送）、test.yml（push 时跑测试）
 ├── sources.json      92 个源（进仓库，只有公开地址）
 └── data/             notify.db、通道状态、dump（gitignore）
 ```
