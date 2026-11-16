@@ -24,10 +24,16 @@ CREATE TABLE IF NOT EXISTS items (
     url         TEXT NOT NULL,
     date        TEXT,
     first_seen  INTEGER NOT NULL,
-    pushed      INTEGER NOT NULL DEFAULT 0
+    pushed      INTEGER NOT NULL DEFAULT 0,
+    baseline    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_items_pending ON items(pushed, first_seen);
 CREATE INDEX IF NOT EXISTS idx_items_source  ON items(source, first_seen);
+
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
 
 CREATE TABLE IF NOT EXISTS sources (
     name          TEXT PRIMARY KEY,
@@ -51,6 +57,22 @@ class Store(object):
         self.conn = sqlite3.connect(self.path, timeout=30)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        # 老库升级：SCHEMA 里的 CREATE TABLE IF NOT EXISTS 不会给已有表补列，
+        # 所以这里显式 ALTER 一次（新库会抛 duplicate column，忽略即可）。
+        upgraded = False
+        try:
+            self.conn.execute("ALTER TABLE items ADD COLUMN baseline INTEGER NOT NULL DEFAULT 0")
+            upgraded = True
+        except sqlite3.OperationalError:
+            pass
+        if upgraded:
+            # 补列后老数据全是 baseline=0 —— 但「每个源的第一批」其实就是当初建基线的那批
+            # （同一批共享同一个 first_seen，且都 pushed=1）。不回溯标记的话，升级当天
+            # 汇总会把几百条历史通知当成「今天的新通知」。
+            self.conn.execute(
+                "UPDATE items SET baseline=1 WHERE first_seen = "
+                "(SELECT MIN(i2.first_seen) FROM items i2 WHERE i2.source = items.source)")
+            self.conn.commit()
         try:
             self.conn.execute("PRAGMA journal_mode=WAL")
         except Exception:
@@ -82,10 +104,11 @@ class Store(object):
             if cur.execute("SELECT 1 FROM items WHERE id=?", (iid,)).fetchone():
                 continue
             cur.execute(
-                "INSERT INTO items (id, source, title, url, date, first_seen, pushed) "
-                "VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO items (id, source, title, url, date, first_seen, pushed, baseline) "
+                "VALUES (?,?,?,?,?,?,?,?)",
                 (iid, source, item.get("title", ""), item.get("url", ""),
-                 item.get("date", ""), now, 1 if baseline else 0),
+                 item.get("date", ""), now, 1 if baseline else 0,
+                 1 if baseline else 0),
             )
             if not baseline:
                 row = dict(item)
@@ -104,6 +127,30 @@ class Store(object):
     def pending_count(self):
         row = self.conn.execute("SELECT COUNT(*) AS n FROM items WHERE pushed=0").fetchone()
         return int(row["n"]) if row else 0
+
+    def items_between(self, start_ts, end_ts, limit=200):
+        """取 [start_ts, end_ts) 之间首次出现的条目（每日汇总用）。
+
+        排除 baseline 条目：新加源会把该源的历史通知以「当天 first_seen」入库，
+        不排除的话当天汇总会莫名多出几十条旧通知。
+        """
+        rows = self.conn.execute(
+            "SELECT * FROM items WHERE baseline=0 AND first_seen>=? AND first_seen<? "
+            "ORDER BY first_seen ASC, date DESC LIMIT ?",
+            (int(start_ts), int(end_ts), int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------ 键值状态
+
+    def get_meta(self, key, default=""):
+        row = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else default
+
+    def set_meta(self, key, value):
+        self.conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                          (key, str(value)))
+        self.conn.commit()
 
     def mark_pushed(self, ids):
         ids = [i for i in (ids or []) if i]

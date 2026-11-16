@@ -28,6 +28,7 @@ sys.path.insert(0, BASE_DIR)
 import notifier      # noqa: E402
 import parser        # noqa: E402
 import discover      # noqa: E402
+import cli           # noqa: E402
 from common import truncate_bytes, truncate_chars      # noqa: E402
 from config import load_sources                        # noqa: E402
 from store import Store                                # noqa: E402
@@ -237,6 +238,58 @@ def ts_at(hhmm):
     return time.mktime((now.tm_year, now.tm_mon, now.tm_mday, hour, minute, 0, 0, 0, -1))
 
 
+def test_digest():
+    """每日汇总：口径（当天、不含基线）、同日去重、超长降级。
+
+    注意：这里不测 maybe_digest 真正「发」的路径，只测「已发过 / 已关闭」这两个
+    一定不会联网的分支，避免跑测试时给手机发消息。
+    """
+    tmp = tempfile.mkdtemp(prefix="jlu-digest-")
+    store = Store(os.path.join(tmp, "d.db"))
+    try:
+        today = time.strftime("%Y-%m-%d")
+        check("汇总：meta 默认为空", store.get_meta("digest_last_date") == "")
+        store.set_meta("digest_last_date", today)
+        check("汇总：meta 能读回", store.get_meta("digest_last_date") == today)
+
+        label, start, end = cli.digest_window(today)
+        check("汇总：时间窗正好一天", end - start == 86400, end - start)
+
+        store.add_items("源A", [{"title": "今日通知", "url": "https://a.jlu.edu.cn/1.htm",
+                                 "date": today}])
+        store.add_items("源B", [{"title": "历史通知", "url": "https://b.jlu.edu.cn/9.htm",
+                                 "date": "2026-01-01"}], baseline=True)
+        items = store.items_between(start, end)
+        check("汇总：只算当天、且基线条目不计入",
+              [i["title"] for i in items] == ["今日通知"], [i["title"] for i in items])
+
+        cfg = {"push": {"title_prefix": "吉大通知"},
+               "digest": {"max_items": 40, "max_chars": 1700}}
+        text, summary, used = notifier.build_digest(items, cfg, day_label=label)
+        check("汇总：标题带日期和条数", "汇总（1 条）" in text and label in text, text[:40])
+        check("汇总：覆盖条数正确", used == 1, used)
+        check("汇总：摘要带前缀", summary.startswith("吉大通知"), summary)
+        check("汇总：没有条目时返回空消息", notifier.build_digest([], cfg)[0] == "")
+
+        many = [{"title": "标题{}".format(i), "url": "https://a.jlu.edu.cn/{}.htm".format(i),
+                 "source": "测试源", "date": today} for i in range(30)]
+        text, _, _ = notifier.build_digest(many, cfg, day_label=label)
+        check("汇总：多了就降级成「仅标题」清单",
+              "其余" in text and len(text) <= 1700, (len(text), text[:30]))
+        tight = {"push": cfg["push"], "digest": {"max_items": 40, "max_chars": 700}}
+        text, _, _ = notifier.build_digest(many, tight, day_label=label)
+        check("汇总：预算被挤爆时也不超长，并说明还有多少条",
+              len(text) <= 700 and "还有" in text, (len(text), text[-30:]))
+
+        on = {"push": cfg["push"], "digest": {"enabled": True, "at": "00:00"}}
+        check("汇总：同一天不会发第二遍（不联网）", cli.maybe_digest(on, store) is False)
+        store.set_meta("digest_last_date", "")
+        off = {"push": cfg["push"], "digest": {"enabled": False}}
+        check("汇总：开关关掉就什么都不做", cli.maybe_digest(off, store) is False)
+    finally:
+        store.close()
+
+
 def test_quiet_hours():
     night = ["23:30", "07:00"]
     check("免打扰：02:00 在 23:30-07:00 内", notifier.in_quiet_hours(night, ts_at("02:00")))
@@ -406,7 +459,8 @@ def test_wxpusher_channel():
 def main():
     tests = (test_school_list, test_jwc_list, test_chem_list, test_xsc_list,
              test_phy_list, test_date_trap, test_nav_filter, test_table_layout,
-             test_detail_time, test_store, test_message, test_quiet_hours,
+             test_detail_time, test_store, test_message, test_digest,
+             test_quiet_hours,
              test_truncate, test_sources_config, test_unit_name,
              test_wxpusher_channel)
     for test in tests:

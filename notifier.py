@@ -32,6 +32,25 @@ def _minutes_of(text, default=-1):
     return default
 
 
+def parse_hhmm(text, default=-1):
+    """把 "22:30" 解析成「当天第几分钟」。写错就用 default（对外公开的包装）。"""
+    return _minutes_of(text, default)
+
+
+def channel_char_cap(cfg):
+    """启用通道里最小的正文上限（没有配置上限的通道不计）；一个都没有返回 None。"""
+    channels_cfg = (cfg or {}).get("channels") or {}
+    caps = []
+    for name in channels.active(channels_cfg):
+        try:
+            cap = int((channels_cfg.get(name) or {}).get("max_chars") or 0)
+        except (TypeError, ValueError):
+            cap = 0
+        if cap > 0:
+            caps.append(cap)
+    return min(caps) if caps else None
+
+
 def in_quiet_hours(quiet_hours, ts=None):
     """免打扰判断，支持跨零点（如 23:30 → 07:00）。配置不合法就当作不静音。"""
     try:
@@ -89,6 +108,67 @@ def build_message(items, cfg):
         text += "…… 还有 {} 条，下一轮继续推\n".format(left)
     summary = "{} · {} 条新通知".format(prefix, len(used))
     return text.rstrip(), used, summary
+
+
+def build_digest(items, cfg, day_label="", budget=None, extra=0):
+    """把一天的通知拼成一条汇总，返回 (text, summary, 总条数)。
+
+    先排「带链接」的若干条（不超过预算的 65%），剩下的降级成「仅标题」清单，
+    把剩余预算用完 —— 这样一天再多条也不会漏，只是后面的不带链接。
+    extra 是「被 max_items 挡在外面、连标题都没排进来的条数」，只为把总数说清楚。
+    """
+    cfg = cfg or {}
+    digest_cfg = cfg.get("digest") or {}
+    push_cfg = cfg.get("push") or {}
+    prefix = push_cfg.get("title_prefix") or "吉大通知"
+    budget = max(400, int(budget or digest_cfg.get("max_chars") or 1700))
+    max_items = max(1, int(digest_cfg.get("max_items") or 40))
+
+    items = [i for i in (items or []) if i][:max_items]
+    if not items:
+        return "", "", 0
+    extra = max(0, int(extra or 0))
+    total = len(items) + extra
+    items = items[::-1]                       # 最新的排最前面
+    label = day_label or time.strftime("%m月%d日")
+
+    header = "**{} · {}汇总（{} 条）**\n\n".format(prefix, label, total)
+    link_cap = int(budget * 0.65)
+    blocks, size = [], len(header)
+    for index, item in enumerate(items, 1):
+        title = (item.get("title") or "").strip() or "（无标题）"
+        url = (item.get("url") or "").strip()
+        meta = " · ".join([x for x in [(item.get("source") or "").strip(),
+                                       (item.get("date") or "").strip()] if x])
+        block = "**{}. {}**\n[{}]({})\n\n".format(index, title, meta or "查看原文", url)
+        if blocks and size + len(block) > link_cap:
+            break
+        blocks.append(block)
+        size += len(block)
+
+    rest = items[len(blocks):]
+    text = header + "".join(blocks)
+    shown = 0
+    if rest:
+        section = "**其余 {} 条（仅标题）**\n".format(len(rest))
+        text += section
+        size += len(section)
+        for item in rest:
+            title = (item.get("title") or "").strip() or "（无标题）"
+            source = (item.get("source") or "").strip()
+            line = "· {}{}\n".format(title, "（{}）".format(source) if source else "")
+            if size + len(line) + 40 > budget:      # 给末尾「还有 N 条」留位置
+                break
+            text += line
+            size += len(line)
+            shown += 1
+
+    hidden = (len(rest) - shown) + extra
+    if hidden > 0:
+        text += "…… 还有 {} 条没列出（白天已单独推送）\n".format(hidden)
+
+    summary = "{} · {}汇总（{} 条）".format(prefix, label, total)
+    return text.rstrip(), summary, total
 
 
 # ---------------------------------------------------------------- 分发

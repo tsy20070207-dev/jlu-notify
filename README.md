@@ -124,6 +124,9 @@ python3 cli.py stats            # 看库里有多少条
 | `python3 cli.py run --no-quiet` | 忽略免打扰时段 |
 | `python3 cli.py list-sources` | 各源上次抓取时间 / 条数 / 报错 |
 | `python3 cli.py stats` | 数据库统计 |
+| `python3 cli.py digest --dry-run` | 预览「今天所有通知」的汇总消息（不发送） |
+| `python3 cli.py digest` | 立刻发一份今天的汇总（不受 22:30 限制） |
+| `python3 cli.py digest --date 2026-11-15` | 补看/补发某一天的汇总 |
 | `python3 discover.py --write` | 重新发现全部通知栏目（联网，约 1 分钟） |
 | `python3 discover.py --reuse --write` | 不联网，按新规则重排一遍栏目 |
 | `python3 tests/smoke_test.py` | 夹具冒烟测试（不联网） |
@@ -182,6 +185,13 @@ python3 cli.py stats            # 看库里有多少条
     "first_run_baseline_only": true,
     "max_per_run": 60
   },
+  "digest": {
+    "enabled": true,          // 每天固定时间再发一条「当日全部通知」汇总
+    "at": "22:30",            // 北京时间；必须早于上面 quiet_hours 的起点
+    "max_items": 40,          // 汇总最多取多少条
+    "max_chars": 1700,        // 正文预算（还会与通道 max_chars 取较小值）
+    "send_empty": false       // 当天 0 条时要不要也发一条「今天没通知」
+  },
   "channels": {
     "wecom":    { "enabled": true, "webhook": "...", "max_chars": 3800 },
     "wxpusher": { "enabled": true, "spt": "SPT_...",           // 极简推送，填这个就够
@@ -194,6 +204,20 @@ python3 cli.py stats            # 看库里有多少条
 
 `channels.*.enabled` 为 `false` 或凭证没填时，该通道被静默跳过，
 **另一个通道照发**，不会因为一个通道没配就整体失败。
+
+### 每日汇总（`digest`）
+
+实时推送照旧；另外每天到 `digest.at`（默认 **22:30 北京时间**）之后，
+**随下一轮抓取**把当天所有通知拼成一条汇总再推一次：
+
+- 前面若干条带链接，剩下的降级成「仅标题」清单，一天再多条也不会漏；
+- 同一天只发一次（`meta.digest_last_date`），重复触发 / 手动点 Run 都不会重发；
+- 发失败不写标记，下一轮 5 分钟后自动重试（直到 23:30 进免打扰）；
+- 当天 0 条新通知就跳过，不打扰；
+- 22:30 之后才出现的新通知不会进当天汇总（会被单条推给你），想覆盖更全就调早/调晚。
+
+不需要额外定时器：它挂在现有的「每 5 分钟一轮」里，GitHub Actions 那边什么都不用改。
+想看效果：`python3 cli.py digest --dry-run`（只打印不发）。
 
 ## 部署
 

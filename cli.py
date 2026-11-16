@@ -9,6 +9,8 @@
     python3 cli.py run --loop                # 常亮设备用：一直跑
     python3 cli.py list-sources              # 看每个源的游标和报错
     python3 cli.py stats                     # 看库里有多少条
+    python3 cli.py digest --dry-run           # 预览今天所有通知的汇总（不发）
+    python3 cli.py digest                     # 现在就发一份今天的汇总
 
 抓取策略（一次 run 里同时实现 A/B 两级频率）：
     A 级源距上次抓取 >= level_a_minutes 才抓，B 级 >= level_b_minutes 才抓。
@@ -85,6 +87,7 @@ def cmd_run(args):
         log("源 {} 个 / 本轮到期 {} 个 / 未到期 {} 个".format(len(all_sources), len(due), skipped))
         if not due:
             log("没有到期的源，本轮什么都不做")
+            maybe_digest(cfg, store)
             return 0
 
         results = fetch_all(due, cfg)
@@ -125,7 +128,9 @@ def cmd_run(args):
         if args.dry_run:
             return finish_dry_run(cfg, fresh, errors, baseline_sources)
 
-        return finish_and_push(args, cfg, store, fresh, errors, baseline_sources)
+        code = finish_and_push(args, cfg, store, fresh, errors, baseline_sources)
+        maybe_digest(cfg, store)      # 到了 digest.at 就顺手发当日汇总
+        return code
     finally:
         if store is not None:
             store.close()
@@ -264,6 +269,95 @@ def cmd_stats(args):
     return 0
 
 
+# ---------------------------------------------------------------- 每日汇总
+
+def digest_window(day=None):
+    """返回 (日期标签, 当天 00:00 的 ts, 次日 00:00 的 ts)；day 形如 2026-11-16。"""
+    try:
+        tm = time.strptime(day, "%Y-%m-%d") if day else time.localtime()
+    except (TypeError, ValueError):
+        tm = time.localtime()
+    start = time.mktime((tm.tm_year, tm.tm_mon, tm.tm_mday, 0, 0, 0, 0, 0, -1))
+    return "{}月{}日".format(tm.tm_mon, tm.tm_mday), start, start + 86400
+
+
+def build_digest_for(cfg, store, day=None):
+    """查某天的通知并拼成汇总，返回 (text, summary, 总条数)。"""
+    digest_cfg = cfg.get("digest") or {}
+    label, start, end = digest_window(day)
+    limit = max(1, int(digest_cfg.get("max_items") or 40))
+    # 多取一条：用来判断「今天其实还有更多条」，好在消息里把总数说清楚
+    items = store.items_between(start, min(end, now_ts() + 1), limit=limit + 1)
+    extra = max(0, len(items) - limit)
+    budget = int(digest_cfg.get("max_chars") or 1700)
+    cap = notifier.channel_char_cap(cfg)
+    if cap:
+        budget = min(budget, cap)
+    return notifier.build_digest(items[:limit], cfg, day_label=label,
+                                 budget=budget, extra=extra)
+
+
+def maybe_digest(cfg, store):
+    """到了 digest.at 且今天还没发过 → 发当日汇总；返回是否真的发了。
+
+    只有至少一个通道成功才写标记，所以发失败时下一轮（5 分钟后）会自动重试。
+    """
+    digest_cfg = cfg.get("digest") or {}
+    if store is None or not digest_cfg.get("enabled"):
+        return False
+    at = notifier.parse_hhmm(digest_cfg.get("at") or "22:30", 22 * 60 + 30)
+    tm = time.localtime()
+    if tm.tm_hour * 60 + tm.tm_min < at:
+        return False
+    today = time.strftime("%Y-%m-%d")
+    if store.get_meta("digest_last_date") == today:
+        return False
+    quiet = (cfg.get("schedule") or {}).get("quiet_hours")
+    if notifier.in_quiet_hours(quiet):
+        log("汇总时间 {} 落在免打扰时段 {} 内，跳过：把 digest.at 改早一点".format(
+            digest_cfg.get("at"), quiet), "WARN")
+        return False
+
+    text, summary, count = build_digest_for(cfg, store, None)
+    if not text:
+        log("今天还没有新通知，本轮不发汇总", "SKIP")
+        return False
+    results = notifier.Notifier(cfg).send(text, summary)
+    if notifier.log_results(results):
+        store.set_meta("digest_last_date", today)
+        log("每日汇总已发出：{} 条 / {} 字符".format(count, len(text)), "PUSH")
+        return True
+    log("每日汇总没发出去，下一轮自动重试", "WARN")
+    return False
+
+
+def cmd_digest(args):
+    """手动发一份汇总（不受 digest.at 限制，用来预览或补发）。"""
+    cfg = load_config()
+    store = Store(cfg["db_path"])
+    try:
+        text, summary, count = build_digest_for(cfg, store, args.date)
+        if not text:
+            log("{} 没有通知，汇总为空".format(args.date or "今天"), "SKIP")
+            return 0
+        log("汇总 {} 条 / {} 字符".format(count, len(text)))
+        if args.dry_run:
+            print("-" * 62)
+            print(text)
+            print("-" * 62)
+            log("dry-run：只预览，没有发送", "SKIP")
+            return 0
+        results = notifier.Notifier(cfg).send(text, summary, only=args.only)
+        if notifier.log_results(results):
+            store.set_meta("digest_last_date", args.date or time.strftime("%Y-%m-%d"))
+            log("每日汇总已发出：{} 条".format(count), "PUSH")
+            return 0
+        log("汇总没发出去：检查通道配置", "ERROR")
+        return 1
+    finally:
+        store.close()
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         description="吉林大学校内通知 → 企业微信 / 微信 推送")
@@ -291,6 +385,12 @@ def build_parser():
 
     stats = sub.add_parser("stats", help="查看数据库统计")
     stats.set_defaults(func=cmd_stats)
+
+    dig = sub.add_parser("digest", help="发一份每日汇总（默认今天）")
+    dig.add_argument("--date", help="指定日期 YYYY-MM-DD，默认今天")
+    dig.add_argument("--dry-run", action="store_true", help="只预览，不发送")
+    dig.add_argument("--only", action="append", help="只走指定通道：wecom / wxpusher")
+    dig.set_defaults(func=cmd_digest)
     return parser
 
 

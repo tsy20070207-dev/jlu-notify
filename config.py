@@ -52,6 +52,19 @@ DEFAULT_CONFIG = {
         # 单次运行最多推送多少条（防止某源改版后一次刷出几百条）
         "max_per_run": 60,
     },
+    "digest": {
+        # 每天固定时间把当天所有通知汇总成一条再推一次（实时推送照旧，不替代）
+        "enabled": True,
+        # 北京时间（云端 TZ=Asia/Shanghai）。过了这个点，随下一轮抓取一起发；
+        # 发失败不记标记，下一轮自动重试。必须早于 schedule.quiet_hours 的起点。
+        "at": "22:30",
+        # 一天最多汇总多少条（防止某源改版一次刷出几百条）
+        "max_items": 40,
+        # 正文预算（字符），实际还会与启用通道的 max_chars 取较小值
+        "max_chars": 1700,
+        # 今天一条新通知都没有时，是否也发一条空汇总
+        "send_empty": False,
+    },
     "channels": {
         "wecom": {
             "enabled": True,

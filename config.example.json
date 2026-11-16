@@ -20,6 +20,13 @@
     "first_run_baseline_only": true,
     "max_per_run": 60
   },
+  "digest": {
+    "enabled": true,
+    "at": "22:30",
+    "max_items": 40,
+    "max_chars": 1700,
+    "send_empty": false
+  },
   "channels": {
     "wecom": {
       "enabled": true,
