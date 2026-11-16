@@ -264,6 +264,28 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 | 换令牌 | 只更新 Secret，不用动代码 |
 | 并发 | workflow 已设 `concurrency`，同一时刻只会跑一个实例，避免同一条通知推两次 |
 
+**兜底：GitHub 定时器不靠谱时（外部 5 分钟触发）**
+
+GitHub 官方文档承认 `schedule` 高峰会延迟、**负载足够高时排队的任务会被直接丢掉**，
+新仓库首次注册还可能几十分钟不跑（实测：注册 20 分钟 0 触发）。
+workflow 里有 `workflow_dispatch`，所以一条 POST 就能打一轮，让外部定时器叫醒它：
+
+1. 建 fine-grained PAT：仓库只选本仓库，权限只给 **Actions: Read and write**（建议 90 天）
+2. [cron-job.org](https://cron-job.org) 建每 5 分钟的 job：
+   - `POST https://api.github.com/repos/<owner>/<repo>/actions/workflows/notify.yml/dispatches`
+   - Header：`Authorization: Bearer <PAT>`、`Accept: application/vnd.github+json`
+   - Body：`{"ref":"main"}`
+3. 仓库里的 cron 保留作兜底（现在是 `7-59/15`）。两条路撞车也不会双推：
+   `concurrency` 会串行化，后一轮发现没新通知直接退出。
+
+自检三行：
+
+```bash
+gh api 'repos/<owner>/<repo>/actions/runs?per_page=20' --jq '[.workflow_runs[]|select(.event=="schedule")]|length'  # GitHub 定时器在不在跑
+gh run list -R <owner>/<repo> --limit 5                                                                              # 最近几轮
+gh api repos/<owner>/<repo>/branches/state --jq .commit.commit.committer.date                                        # 数据库最后更新时间
+```
+
 **想切回本机跑？** 先把云端那份数据库取回来，否则会重复推送：
 ```bash
 git fetch origin state --depth=1 && git show FETCH_HEAD:notify.db > data/notify.db
