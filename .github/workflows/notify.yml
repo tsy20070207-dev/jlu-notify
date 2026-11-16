@@ -1,0 +1,78 @@
+name: 吉大通知推送
+
+on:
+  schedule:
+    # GitHub 的 cron 用 UTC，每 5 分钟一次；高峰期可能延迟几分钟启动
+    - cron: "*/5 * * * *"
+  workflow_dispatch:        # 仓库页面上的「Run workflow」手动触发
+
+# 只允许一个实例在跑：抓取+推送不能并发，否则同一条通知会推两次
+concurrency:
+  group: jlu-notify
+  cancel-in-progress: false
+
+permissions:
+  contents: write           # 需要把数据库写回 state 分支
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # 关键：runner 默认 UTC，不设时区的话免打扰 23:30-07:00 会错成北京时间 07:30-15:00
+      TZ: Asia/Shanghai
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 取回去重数据库（state 分支）
+        run: |
+          mkdir -p data
+          if git fetch --depth=1 origin state 2>/dev/null; then
+            git show FETCH_HEAD:notify.db > data/notify.db
+            echo "已取回数据库 $(du -h data/notify.db | cut -f1)"
+          else
+            echo "state 分支还没有数据库：本轮会建基线，不会补推历史通知"
+          fi
+
+      - name: 还原配置（来自 Secret，仓库里没有令牌）
+        env:
+          CONFIG_JSON_B64: ${{ secrets.CONFIG_JSON_B64 }}
+        run: |
+          if [ -z "$CONFIG_JSON_B64" ]; then
+            echo "缺少 Secret CONFIG_JSON_B64，见 README「部署 · GitHub Actions」"
+            exit 1
+          fi
+          printf '%s' "$CONFIG_JSON_B64" | base64 -d > config.json
+          python3 -c "import json;c=json.load(open('config.json'))['channels'];print('启用通道:',[k for k,v in c.items() if v.get('enabled')])"
+
+      - name: 跑一轮
+        run: python3 cli.py run --once
+
+      - name: 保存去重数据库（失败也存，别丢状态）
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          rm -rf /tmp/state && mkdir -p /tmp/state && cd /tmp/state
+          git init -q
+          git config user.name  "jlu-notify-bot"
+          git config user.email "bot@users.noreply.github.com"
+          if git fetch -q --depth=1 "$REMOTE" state 2>/dev/null; then
+            git checkout -q -b state FETCH_HEAD
+            AMEND=1                      # 已有提交：amend 成单个提交，历史不膨胀
+          else
+            git checkout -q --orphan state
+            AMEND=0
+          fi
+          cp "$GITHUB_WORKSPACE/data/notify.db" notify.db
+          git add -f notify.db
+          if [ "$AMEND" = "1" ]; then
+            git commit -q --amend -m "state $(date -u +%FT%TZ)"
+          else
+            git commit -q -m "state $(date -u +%FT%TZ)"
+          fi
+          git push -q -f "$REMOTE" state
+          echo "state 分支已更新（单条提交，force push）"

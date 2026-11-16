@@ -1,0 +1,16 @@
+name: 测试
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: 冒烟测试（不需要任何令牌，全程不联网）
+        run: python3 tests/smoke_test.py
