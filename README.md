@@ -254,6 +254,11 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 | 换令牌 | 只更新 Secret，不用动代码 |
 | 并发 | workflow 已设 `concurrency`，同一时刻只会跑一个实例，避免同一条通知推两次 |
 
+**想切回本机跑？** 先把云端那份数据库取回来，否则会重复推送：
+```bash
+git fetch origin state --depth=1 && git show FETCH_HEAD:notify.db > data/notify.db
+```
+
 
 
 ```ini
