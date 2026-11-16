@@ -258,34 +258,68 @@ launchctl load ~/Library/LaunchAgents/cn.jlu.notify.plist
 | 事项 | 说明 |
 | --- | --- |
 | 时区 | workflow 里的 `TZ: Asia/Shanghai` 别删。runner 是 UTC，删了免打扰 23:30–07:00 会错成北京时间 07:30–15:00 |
-| 额度 | 公开仓库 Actions 免费不限量；私有仓库每月 2000 分钟，`7-59/15` 每轮至少按 1 分钟计（≈2900 分钟/月）刚好够，想保险可放成 `3-59/30`（≈1440 分钟/月） |
-| 延迟 | cron 最小 5 分钟；官方文档说「整点是负载高峰，可能延迟甚至丢队列」。所以默认 cron 是 `7-59/15`（:07 :22 :37 :52）当兜底，5 分钟节奏交给外部定时器。实测新仓库注册后 20 分钟 0 触发，属正常 |
+| 额度 | 公开仓库 Actions 免费不限量；私有仓库每月 2000 分钟，`*/15` 每轮至少按 1 分钟计（≈2900 分钟/月）刚好够，想保险可放成 `*/30`（≈1440 分钟/月） |
+| 延迟 | cron 最小 5 分钟；官方文档说「整点是负载高峰，可能延迟甚至丢队列」。默认 cron 是 `*/15` **只当兜底**，主力是外部定时器打 `workflow_dispatch`（见下）。⚠️ 实测本仓库的 schedule 注册后 **2 小时 19 分、9 个触发点一次都没下发**，别把定时寄托在它身上 |
 | 60 天无活动 | GitHub 会自动停用定时任务并发邮件；本仓库每轮都在更新 `state` 分支，所以不会触发 |
 | `sources.json` | 已进仓库（只有公开栏目地址）；增删源直接改它提交即可 |
 | 换令牌 | 只更新 Secret，不用动代码 |
 | 并发 | workflow 已设 `concurrency`，同一时刻只会跑一个实例，避免同一条通知推两次 |
 
-**兜底：GitHub 定时器不靠谱时（外部 5 分钟触发）**
+**触发器分两层，先搞清楚谁负责什么**
 
-GitHub 官方文档承认 `schedule` 高峰会延迟、**负载足够高时排队的任务会被直接丢掉**，
-新仓库首次注册还可能几十分钟不跑（实测：注册 20 分钟 0 触发）。
-workflow 里有 `workflow_dispatch`，所以一条 POST 就能打一轮，让外部定时器叫醒它：
+| 层 | 谁干 | 跑在哪 |
+| --- | --- | --- |
+| 执行层：抓取 → 去重 → 推送 | GitHub 的免费机器 | 云端，跟你的电脑无关 |
+| 触发层：每 N 分钟喊一声「开始干活」 | 外部定时器（cron-job.org） | 云端，跟你的电脑无关 |
 
-1. 建 fine-grained PAT：仓库只选本仓库，权限只给 **Actions: Read and write**（建议 90 天）
-2. [cron-job.org](https://cron-job.org) 建每 5 分钟的 job：
-   - `POST https://api.github.com/repos/<owner>/<repo>/actions/workflows/notify.yml/dispatches`
-   - Header：`Authorization: Bearer <PAT>`、`Accept: application/vnd.github+json`
-   - Body：`{"ref":"main"}`
-3. 仓库里的 cron 保留作兜底（现在是 `7-59/15`）。两条路撞车也不会双推：
-   `concurrency` 会串行化，后一轮发现没新通知直接退出。
+令牌在 Secret 里、去重库在 `state` 分支里，**所以电脑开不开机都不影响通知**。
+唯一的问题是「谁按时喊那一声」—— 实测 GitHub 自带的 `schedule` 在本仓库不干活
+（注册后 2 小时 19 分、9 个触发点，0 次），所以主力靠外部定时器。
 
-自检三行：
+**① 一把只开一个门的钥匙（fine-grained PAT）**
+
+直达链接：<https://github.com/settings/personal-access-tokens/new>
+
+| 字段 | 值 |
+| --- | --- |
+| Token name | `jlu-notify-cron` |
+| Expiration | 90 days |
+| Resource owner | 你的账号 |
+| Repository access | Only select repositories → 只勾 `jlu-notify` |
+| Repository permissions | 只把 **Actions** 改成 **Read and write**，其余不动 |
+
+生成后那串 `github_pat_...` 只显示一次，立刻复制。
+
+**② cron-job.org 建任务**
+
+注册（要邮箱收验证码）→ **CREATE CRONJOB**：
+
+| 字段 | 值 |
+| --- | --- |
+| URL | `https://api.github.com/repos/<owner>/<repo>/actions/workflows/notify.yml/dispatches` |
+| Schedule | Every 5 minutes（或 Custom `*/5 * * * *`） |
+| Request method | `POST` |
+| Request body | `{"ref":"main"}` |
+| Headers | `Authorization: Bearer github_pat_...`<br>`Accept: application/vnd.github+json`<br>`Content-Type: application/json` |
+
+存盘后点 **TEST RUN**，状态码 **204** 就是成功（204 = GitHub 收下，没有返回体）。
+
+已知限制（官方 FAQ）：执行超时 30 秒；自定义 `User-Agent` 会被忽略；
+连续失败 25 次会自动停用该任务（可开邮件通知）；免费版最小间隔 1 分钟。
+
+**③ 两条触发撞车也不会双推**：`concurrency` 串行化，后一轮发现没新通知直接退出。
+
+**自检三行**：
 
 ```bash
-gh api 'repos/<owner>/<repo>/actions/runs?per_page=20' --jq '[.workflow_runs[]|select(.event=="schedule")]|length'  # GitHub 定时器在不在跑
-gh run list -R <owner>/<repo> --limit 5                                                                              # 最近几轮
-gh api repos/<owner>/<repo>/branches/state --jq .commit.commit.committer.date                                        # 数据库最后更新时间
+gh run list -R <owner>/<repo> --limit 5                                                    # 最近几轮（看是不是每 5 分钟一轮 workflow_dispatch）
+gh api repos/<owner>/<repo>/branches/state --jq .commit.commit.committer.date              # 数据库最后更新时间
+gh workflow run test-push.yml -R <owner>/<repo>                                            # 手动发一条测试推送，验证通道
 ```
+
+**通道自测**：Actions 页面 → 左侧 **测试推送** → **Run workflow**，
+手机应立即收到「吉大通知 · 通道自测」。日志里 `[wxpusher] OK 已送达 WxPusher` 只代表
+WxPusher 接口收下了；**没装 WxPusher 接收端（App / 桌面客户端）就收不到**，公众号不是主通道。
 
 **想切回本机跑？** 先把云端那份数据库取回来，否则会重复推送：
 ```bash
@@ -374,7 +408,7 @@ jlu-notify/
 ├── channels/         wecom / wxpusher / pushplus
 ├── sources/          site（通用博达栏目）/ oa（内网）
 ├── tests/            夹具冒烟测试（93 项，不联网）
-├── .github/workflows/ notify.yml（定时推送）、test.yml（push 时跑测试）
+├── .github/workflows/ notify.yml（定时推送）、test-push.yml（手动测试推送）、test.yml（push 时跑测试）
 ├── sources.json      92 个源（进仓库，只有公开地址）
 └── data/             notify.db、通道状态、dump（gitignore）
 ```
