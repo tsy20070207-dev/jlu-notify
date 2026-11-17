@@ -60,8 +60,10 @@ function grabScript() {
         continue;
       }
       var h = x.responseText || '';
-      if (h.length < 4096 || h.indexOf('wengine-vpn') > -1 ||
-          (h.indexOf('/login') > -1 && h.indexOf('channelName') === -1)) {
+      // 注意：WebVPN 会给每个页面注入 wengine-vpn 的脚本/样式，
+      // 拿它判断登录态会把正常页面全判成过期。
+      // 列表页一定带 channelName，登录页没有，这才是可靠判据。
+      if (h.length < 4096 || h.indexOf('channelName') === -1) {
         out.push({ id: ids[i], board: ids[i], rows: [], expired: true });
         continue;
       }
