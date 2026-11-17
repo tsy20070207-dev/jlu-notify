@@ -11,10 +11,15 @@
 
 第一步只放 4 个动作（打开页面 → 等待 → 跑 JS → 显示结果），先把链路验证通；
 推送和自动化确认能跑之后再加。
+
+结构刻意压到最少：跑 JS（唯一的实质动作）→ 显示通知 → 显示结果。
+页面跳转交给用户自己在 Safari 里完成——脚本里 location.replace 会让 JS 上下文
+当场销毁、动作永远不返回，整条快捷指令静默中断，这正是之前「点了没反应」的元凶。
 """
 
 import os
 import plistlib
+import re
 import subprocess
 import sys
 import uuid
@@ -22,12 +27,6 @@ import uuid
 BASE = os.path.dirname(os.path.abspath(__file__))
 JS_PATH = os.path.join(BASE, "oa.js")
 OUT_PATH = os.path.join(BASE, "OA通知.shortcut")
-
-# 打开哪个板块无所谓：oa.js 里会自己 fetch 另外三个，这里只是把浏览器带到
-# vpn.jlu.edu.cn 这个域下（同源才能带 cookie 抓取）
-LIST_URL = ("https://vpn.jlu.edu.cn/https/"
-            "48714f71342f7a336d582f7e2857373750cd3d1004df80a0b5971c1b1a"
-            "/defaultroot/PortalInformation!jldxList.action?channelId=179577")
 
 
 def uid():
@@ -56,34 +55,24 @@ def output_token(action_uuid, name, serialization="WFTextTokenAttachment"):
 
 
 def build_actions(js_code):
-    # 不再用「打开 URL」动作：它的 URL 参数在 macOS/iOS 上试了三种写法（纯文本 token、
-    # 文本附件、URL 动作输出）都报「请确保向打开URL传递了有效URL」，不值得再赌。
-    # 改成让第一段 JS 自己 location.replace 过去——「运行 JavaScript」这个动作本身是好的，
-    # 而且它在跳转后的页面上继续跑第二段 JS，效果和「打开 URL + 等待」一样。
-    jump_js = (
-        "var target = '" + LIST_URL + "';\n"
-        "if (location.host !== 'vpn.jlu.edu.cn') {\n"
-        "  completion('JUMPING');\n"      # 必须先 completion 收尾，动作才肯放行
-        "  location.replace(target);\n"   # 收尾后再发起跳转
-        "} else {\n"
-        "  completion('ALREADY_HERE');\n"
-        "}"
-    )
     js_uuid = uid()
-    actions = [
-        {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.runjavascriptonwebpage",
-            "WFWorkflowActionParameters": {"UUID": uid(), "WFJavaScript": jump_js},
-        },
-        {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.delay",
-            "WFWorkflowActionParameters": {"UUID": uid(), "WFDelayTime": 8},
-        },
+    return [
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.runjavascriptonwebpage",
             "WFWorkflowActionParameters": {"UUID": js_uuid, "WFJavaScript": js_code},
         },
-        # 把 JS 的结论显示出来，不然「没有新通知」时点完毫无反应，没法判断到底跑没跑
+        # 从 Safari 分享菜单触发时处于扩展环境，「显示结果」不一定弹得出来，
+        # 先用通知兜一条：锁屏和通知中心里都能回看，不至于又是「没反应」
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.notification",
+            "WFWorkflowActionParameters": {
+                "UUID": uid(),
+                "WFNotificationActionTitle": "OA通知",
+                "WFNotificationActionBody": output_token(
+                    js_uuid, "JavaScript Result", "WFTextTokenString"),
+                "WFNotificationActionSound": True,
+            },
+        },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
             "WFWorkflowActionParameters": {
@@ -92,7 +81,22 @@ def build_actions(js_code):
             },
         },
     ]
-    return actions
+
+
+def strip_comments(js):
+    """去掉块注释、整行 // 注释和空行。
+
+    iOS 的「运行 JavaScript」动作对脚本体积敏感，塞进 plist 的长脚本更容易
+    「无法在网页中运行JavaScript」。这里只删整行注释，不碰行尾，
+    避免把 URL 里的 // 误删掉。"""
+    js = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
+    lines = []
+    for line in js.split("\n"):
+        s = line.strip()
+        if not s or s.startswith("//"):
+            continue
+        lines.append(s)
+    return "\n".join(lines)
 
 
 def main():
@@ -100,7 +104,8 @@ def main():
         print("找不到 {}".format(JS_PATH))
         return 2
     with open(JS_PATH, "r", encoding="utf-8") as f:
-        js_code = f.read()
+        js_code = strip_comments(f.read())
+    print("脚本字符数（去注释后）：{}".format(len(js_code)))
 
     workflow = {
         "WFWorkflowClientVersion": "2606.0.1",
@@ -112,7 +117,7 @@ def main():
             "WFWorkflowIconGlyphNumber": 59511,       # 铃铛
         },
         "WFWorkflowImportQuestions": [],
-        "WFWorkflowTypes": [],
+        "WFWorkflowTypes": ["ActionExtension"],
         "WFWorkflowInputContentItemClasses": ["WFStringContentItem", "WFURLContentItem"],
         "WFWorkflowHasOutputFallback": False,
         "WFWorkflowOutputContentItemClasses": ["WFStringContentItem"],
