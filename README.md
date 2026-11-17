@@ -487,43 +487,45 @@ jlu-notify/
 ├── config.py         配置加载与校验
 ├── channels/         wecom / wxpusher / pushplus
 ├── sources/          site（通用博达栏目）/ oa（OA 四板块，channelId 驱动）
-├── iphone/           纯手机方案：oa.js（浏览器里跑）+ build_shortcut.py + 签好的快捷指令
+├── iphone/           纯手机方案：oa_scriptable.js（Scriptable，推荐）+ 快捷指令遗留代码
 ├── tests/            夹具冒烟测试（132 项，不联网）
 ├── .github/workflows/ notify.yml（定时推送）、test-push.yml（手动测试推送）、test.yml（push 时跑测试）
 ├── sources.json      95 条源（4 个 OA + 91 个站点，进仓库，只有公开地址）
 └── data/             notify.db、通道状态、dump（gitignore）
 ```
 
-## 手机端：iPhone 快捷指令（不依赖服务器）
+## 手机端：iPhone + Scriptable（不依赖服务器）
 
-OA 那四个板块要登录态，云端 IP 抓不到；校内服务器又不可能 24 小时开着。所以给 OA 单独做了一条纯手机路线：
+OA 那四个板块要登录态，云端 IP 抓不到；校内服务器又不可能 24 小时开着。所以给 OA 单独做了一条纯手机路线。
 
-**原理**：快捷指令里放一个「在活跃的 Safari 标签页中运行 JavaScript」动作，脚本在**已经登录 WebVPN 的 Safari 页面**里跑，用页面自身的 cookie 去 fetch 四个板块，解析完直接调 wxpusher 接口推微信。会话、跨域、令牌全在浏览器里解决，不需要任何后端。
+**原理**：Scriptable 的 `WebView` 是一个普通 WKWebView，cookie 留在 App 自己的 `WKWebsiteDataStore` 里。首次在弹窗里登录一次 WebVPN，之后脚本就在同源环境里用**同步 XHR** 抓四个板块，解析完直接调 wxpusher 推微信。不需要任何后端。
 
-**用法**（一次性配置，之后就是一个按钮）：
+**用法**（一次性配置）：
 
-1. 双击 `iphone/OA通知.shortcut` 导入（已签名，iOS 15+ 可直接添加）；
-2. iPhone 上 Safari 登录一次 `vpn.jlu.edu.cn`（勾「记住设备」，能撑很久）；
-3. 点「OA通知」→ 第一次只记基线不推送，之后有新通知直接进微信。
+1. App Store 装 Scriptable；
+2. 取 `iphone/oa_scriptable.js` 的内容（手机 Safari 打开
+   `https://cdn.jsdelivr.net/gh/tsy20070207-dev/jlu-notify@main/iphone/oa_scriptable.js`
+   全选复制），粘进 Scriptable 新建的脚本，命名「OA通知」；
+3. 运行一次 → 弹 WebVPN 登录页 → 登录 → 点「Done」；
+4. 第一次只记基线不推送，之后有新通知直接进微信。
 
-**跑起来但一条没推？** 看快捷指令最后弹出的文字：
+**更新脚本**：重新复制覆盖即可，cookie 和已读记录都不受影响。
+
+**结果提示**：
 
 | 弹窗 | 含义 |
 |---|---|
-| `✅ 首次运行，已记住 120 条作为基线` | 正常，之后只推新的 |
+| `首次运行，已建立基线` | 正常，已记住当前所有条目 |
 | `没有新通知（共查 120 条）` | 正常，四个板块都抓到了 |
-| `⚠️ VPN 或 OA 登录已过期` | Safari 里的 WebVPN 会话掉了，重登一次 |
-| `❌ 微信推送失败` | 网络问题，没记已读，下次会重试 |
+| `已推送到微信` | 推送成功，已记为已读 |
+| `需要重新登录 WebVPN` | 会话过期，重跑一次并登录 |
+| `微信推送失败` | 网络问题，没记已读，下次会重试 |
 
-**改脚本后要重新签名**（`shortcuts sign` 需要 macOS，只在改代码时用一次）：
+已读记录存在 Scriptable 文档目录的 `oa_seen.json`（上限 3000 条），只有推送成功才写，所以推送失败不会丢通知。
 
-```bash
-python3 iphone/build_shortcut.py      # 生成 + 签名，产出 iphone/OA通知.shortcut
-```
+**后台运行**：被快捷指令自动化触发时弹不出 UI，脚本改用本地通知反馈；会话过期也不会卡住，只会通知你手动登录一次。
 
-脚本主体在 `iphone/oa.js`，改完重跑上面这条命令、把新文件 Airdrop 到手机重新导入即可。
-已读记录存在 Safari 的 `localStorage['oa_seen_v1']`（上限 3000 条），只有推送成功才写，
-所以推送失败不会丢通知。
+**踩过的坑（留档）**：一开始用快捷指令的「在活跃标签页中运行 JavaScript」动作，`iphone/oa.js` + `build_shortcut.py` 那套能在 Mac Safari 上验证抓取，但在 iPhone 分享扩展里始终报「无法在网页中运行JavaScript」——顶层 `const` 重复声明（已用 IIFE 修掉）、异步 `fetch` 超出动作完成窗口（试过改成同步 XHR）都排查过，最后判定是这个动作承载不了真实工作，放弃。相关代码留在 `iphone/` 下供参考，不再是推荐路径。
 
 ## 加一个自己的源
 

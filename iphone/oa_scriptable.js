@@ -136,12 +136,24 @@ function ageDays(item) {
   return (Date.now() - d.getTime()) / 86400000;
 }
 
+// 前台（在 Scriptable 里点运行）弹框；后台（快捷指令自动化触发）弹不出来，
+// 所以改成发本地通知，并把结果写进快捷指令输出，方便排查
 async function finish(title, body) {
-  const a = new Alert();
-  a.title = title;
-  a.message = body;
-  a.addAction('好');
-  await a.present();
+  const msg = body || '';
+  if (config.runsInApp) {
+    const a = new Alert();
+    a.title = title;
+    a.message = msg;
+    a.addAction('好');
+    await a.present();
+    return;
+  }
+  const n = new Notification();
+  n.title = title;
+  n.body = msg;
+  n.sound = 'default';
+  await n.schedule();
+  Script.setShortcutOutput(title + '\n' + msg);
 }
 
 async function main() {
@@ -150,14 +162,17 @@ async function main() {
 
   let probe = await canFetch(wv);
   if (!probe.ok) {
-    // 需要登录：把 WebVPN 登录页交给用户，登录完点「Done」
-    await wv.present();
-    await wv.loadURL('https://vpn.jlu.edu.cn/');
-    probe = await canFetch(wv);
+    // 只有在前台运行时才能把登录页交给用户点；后台（自动化）弹不出 WebView，
+    // 只能发通知让他自己打开 Scriptable 登录
+    if (config.runsInApp) {
+      await wv.present();
+      await wv.loadURL('https://vpn.jlu.edu.cn/');
+      probe = await canFetch(wv);
+    }
     if (!probe.ok) {
-      await finish('取不到 OA 页面',
-        '没拿到列表（页面 ' + probe.len + ' 字节）。\n' +
-        '请在弹窗里完整登录一次 WebVPN，确认能打开 OA 首页后，再运行本脚本。');
+      await finish('需要重新登录 WebVPN',
+        'Scriptable 里的 WebVPN 会话过期了（页面 ' + probe.len + ' 字节）。\n' +
+        '打开 Scriptable 手动运行一次「OA通知」，在弹窗里登录即可。');
       return;
     }
   }
