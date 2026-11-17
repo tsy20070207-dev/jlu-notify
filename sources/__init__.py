@@ -3,7 +3,8 @@
 
 sources.json 里每条记录用 "type" 指定抓取方式，默认 site：
     {"name": "本科生院", "url": "https://jwc.jlu.edu.cn/zxzx/tzgg.htm", "level": "A", "type": "site"}
-    {"name": "OA 办公网", "type": "oa", "url": "http://oa.jlu.edu.cn/", "level": "A"}
+    {"name": "OA·校内通知", "type": "oa", "channel_id": "179577", "pages": 2,
+     "needs_campus": true, "level": "A"}
 """
 
 from . import oa, site                       # noqa: F401

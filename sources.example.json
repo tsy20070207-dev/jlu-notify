@@ -23,12 +23,15 @@
       "enabled": true
     },
     {
-      "name": "OA 办公网",
-      "url": "http://oa.jlu.edu.cn/",
+      "name": "OA·校内通知",
+      "url": "http://oa.jlu.edu.cn/defaultroot/PortalInformation!jldxList.action?channelId=179577",
       "level": "A",
       "type": "oa",
-      "enabled": false,
-      "_comment": "内网源，先在校内跑 probe_oa.py 再打开"
+      "channel_id": "179577",
+      "pages": 2,
+      "needs_campus": true,
+      "enabled": true,
+      "_comment": "内网源：只有校园网能访问，用 oa_watch.py 在这台机器上跑；板块名可跑 oa_check.py --write-sources 自动纠正"
     }
   ]
 }

@@ -18,7 +18,11 @@
     "max_chars": 1800,
     "title_prefix": "吉大通知",
     "first_run_baseline_only": true,
-    "max_per_run": 60
+    "max_per_run": 60,
+    "max_age_days": 3,
+    "per_source_limit": 4,
+    "title_skip_keywords": [],
+    "check_links": true
   },
   "digest": {
     "enabled": true,

@@ -13,3 +13,6 @@ sources_candidates.json
 
 __pycache__/
 .DS_Store
+
+# 快捷指令签名中间产物（build_shortcut.py 失败时留下，仅供排查）
+iphone/.oa-unsigned.shortcut

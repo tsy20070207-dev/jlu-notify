@@ -52,6 +52,10 @@ TITLE_DATE_LEAD_RE = re.compile(
     r"|20\d{2}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2})[\s\]\)）】]*")
 HEADING_RE = re.compile(r"(?is)<h[1-4]\b[^>]*>(.*?)</h[1-4]>")
 
+# 标题长度上限：正常通知标题很少超过 60 字，超了基本是站点把正文摘要塞进链接了
+TITLE_SOFT_LIMIT = 60
+TITLE_HARD_LIMIT = 80
+
 BLOCK_PATTERNS = (
     re.compile(r"<li\b[^>]*>(.*?)</li>", re.S | re.I),
     re.compile(r"<tr\b[^>]*>(.*?)</tr>", re.S | re.I),
@@ -117,11 +121,33 @@ def _strip_href(block):
                   r"<a\1\2>", block or "")
 
 
+def truncate_title(text, soft=TITLE_SOFT_LIMIT, hard=TITLE_HARD_LIMIT):
+    """标题长度治理：软上限内原样返回，超了就在分隔符处断开加省略号。
+
+    被「标题里混进正文摘要」的站点撑着，一条标题能到 200 字（微信里直接刷屏），
+    而正常通知标题很少有超过 60 字的，所以超过就截。
+    """
+    text = text or ""
+    if len(text) <= soft:
+        return text
+    cut = text[:soft]
+    for idx in range(len(cut) - 1, max(0, soft // 2) - 1, -1):
+        if cut[idx] in "，,、；;：:）)】」 ":
+            cut = cut[:idx]
+            break
+    cut = cut.rstrip(" -—|·　…№")
+    return cut[:max(1, hard - 1)] + "…"
+
+
 def _clean_title(text):
-    """标题清洗：去掉首尾的日期残留、装饰性符号。"""
+    """标题清洗：去掉首尾的日期残留、装饰性符号，再压到正常长度。"""
     text = TITLE_DATE_SUFFIX_RE.sub("", text or "")
     text = TITLE_DATE_LEAD_RE.sub("", text)
-    return text.strip(" -—|·　…№")
+    return truncate_title(text.strip(" -—|·　…№"))
+
+
+# OA 源等其它解析器复用同一套清洗规则
+clean_title = _clean_title
 
 
 def _anchor_title(anchor_match):

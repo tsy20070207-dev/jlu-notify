@@ -19,14 +19,20 @@
 
 import argparse
 import concurrent.futures as cf
+import os
 import sys
 import time
 
+import filters
 import notifier
 import sources as source_registry
 from common import FetchError, log, now_ts, ts_text
 from config import enabled_sources, load_config, load_sources
 from store import Store
+
+
+class FetchTimeout(FetchError):
+    """整轮时间预算用完了：这个源本轮不抓，既不算失败，也不动它的游标。"""
 
 
 def interval_seconds(source, cfg):
@@ -42,22 +48,53 @@ def interval_seconds(source, cfg):
 
 
 def fetch_all(pending_sources, cfg):
-    """并发抓取，返回 {源名: [条目] 或 FetchError}。DB 只在主线程写。"""
+    """并发抓取，返回 {源名: [条目] 或 异常}。DB 只在主线程写。
+
+    整轮受 schedule.max_run_seconds 限制：到点还没轮上的源本轮跳过（记 FetchTimeout），
+    下轮照样到期，不会被漏掉，也不会把整轮判成失败。
+    """
     request_cfg = (cfg or {}).get("request") or {}
     workers = max(1, int(request_cfg.get("workers") or 4))
+    try:
+        budget = float(((cfg or {}).get("schedule") or {}).get("max_run_seconds") or 0)
+    except (TypeError, ValueError):
+        budget = 0
     results = {}
     if not pending_sources:
         return results
     with cf.ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(source_registry.fetch, src, request_cfg): src
                    for src in pending_sources}
-        for future in cf.as_completed(futures):
+        done, not_done = cf.wait(futures, timeout=budget if budget > 0 else None)
+        for future in done:
             src = futures[future]
             try:
                 results[src["name"]] = future.result()
             except Exception as exc:
                 results[src["name"]] = exc
+        for future in not_done:
+            future.cancel()
+            results[futures[future]["name"]] = FetchTimeout(
+                "超出单轮时间上限 {} 秒，本轮跳过".format(int(budget)))
     return results
+
+
+SKIP_CAMPUS_ENV = "JLU_NOTIFY_SKIP_CAMPUS"
+
+
+def skip_offcampus(all_sources):
+    """云端（GitHub Actions）跑时，跳过只能在校内网访问的源（needs_campus=true）。
+
+    OA 那 4 个板块由校园网那台机器上的 oa_watch.py 负责抓；云端硬抓只会 4 个源
+    全失败，白白把整轮判成运行失败。所以要显式开这个开关（workflow 里已设）。
+    """
+    if str(os.environ.get(SKIP_CAMPUS_ENV) or "").strip().lower() not in ("1", "true", "yes"):
+        return all_sources
+    keep = [s for s in all_sources if not s.get("needs_campus")]
+    if len(keep) != len(all_sources):
+        log("云端模式（{}=1）：跳过 {} 个只能在校内网访问的源".format(
+            SKIP_CAMPUS_ENV, len(all_sources) - len(keep)))
+    return keep
 
 
 def print_source_items(name, items, limit=3):
@@ -68,7 +105,7 @@ def print_source_items(name, items, limit=3):
 
 def cmd_run(args):
     cfg = load_config()
-    all_sources = enabled_sources(load_sources())
+    all_sources = skip_offcampus(enabled_sources(load_sources()))
     if args.source:
         wanted = set(args.source)
         all_sources = [s for s in all_sources if s["name"] in wanted]
@@ -96,6 +133,10 @@ def cmd_run(args):
         for src in due:
             name = src["name"]
             outcome = results.get(name)
+            if isinstance(outcome, FetchTimeout):
+                # 没轮上的源不动游标，下一轮照样到期，不会被漏掉
+                log("{} 本轮跳过：{}".format(name, outcome), "SKIP")
+                continue
             if isinstance(outcome, Exception):
                 errors.append((name, str(outcome)))
                 log("{} 抓取失败: {}".format(name, outcome), "ERROR")
@@ -130,6 +171,9 @@ def cmd_run(args):
 
         code = finish_and_push(args, cfg, store, fresh, errors, baseline_sources)
         maybe_digest(cfg, store)      # 到了 digest.at 就顺手发当日汇总
+        pruned = store.prune(120)     # 控制数据库体积（只删 120 天前已推送的）
+        if pruned:
+            log("清掉 {} 条 120 天前的旧记录".format(pruned))
         return code
     finally:
         if store is not None:
@@ -160,6 +204,11 @@ def finish_and_push(args, cfg, store, fresh, errors, baseline_sources):
         log("本轮没有需要推送的新通知")
         return report(errors, ok=True, limit=source_error_tolerance(cfg))
 
+    pending = apply_filters(cfg, store, pending)
+    if not pending:
+        log("本轮没有需要推送的新通知（全部被降噪过滤）")
+        return report(errors, ok=True, limit=source_error_tolerance(cfg))
+
     quiet = (cfg.get("schedule") or {}).get("quiet_hours")
     if notifier.in_quiet_hours(quiet) and not args.no_quiet:
         log("免打扰时段 {}，{} 条留在队列，时段结束后合并成一条推送".format(quiet, len(pending)), "SKIP")
@@ -182,6 +231,28 @@ def finish_and_push(args, cfg, store, fresh, errors, baseline_sources):
     else:
         log("所有通道都失败了，条目留在队列里下轮重试", "WARN")
     return report(errors, ok=any_ok, limit=source_error_tolerance(cfg))
+
+
+def apply_filters(cfg, store, pending):
+    """降噪闸门：过期 / 噪音词 → 隐藏；死链 → 丢弃。返回真正能推的条目。
+
+    被丢的条目都被标成「已推送 + 隐藏」，既不占队列也不会在当日汇总里复活；
+    超过 per_source_limit 的条目不受影响，仍在队列里等晚上汇总。
+    """
+    push_cfg = cfg.get("push") or {}
+    kept, hidden = filters.select_pushable(pending, cfg)
+    if hidden:
+        reasons = filters.drop_reasons(hidden)
+        store.hide_items([item["id"] for item in hidden])
+        log("降噪：{} 条不推（过期 {} / 噪音词 {}），已隐藏".format(
+            len(hidden), reasons.get("stale", 0), reasons.get("noisy", 0)), "SKIP")
+    if push_cfg.get("check_links", True) and kept:
+        alive, dead = filters.drop_dead_links(kept, cfg)
+        if dead:
+            store.hide_items([item["id"] for item in dead])
+            log("死链：{} 条（404/410）已丢弃".format(len(dead)), "SKIP")
+            kept = alive
+    return kept
 
 
 def source_error_tolerance(cfg):

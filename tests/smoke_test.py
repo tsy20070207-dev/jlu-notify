@@ -28,8 +28,9 @@ sys.path.insert(0, BASE_DIR)
 import notifier      # noqa: E402
 import parser        # noqa: E402
 import discover      # noqa: E402
+import filters       # noqa: E402
 import cli           # noqa: E402
-from common import truncate_bytes, truncate_chars      # noqa: E402
+from common import now_ts, truncate_bytes, truncate_chars      # noqa: E402
 from config import load_sources                        # noqa: E402
 from store import Store                                # noqa: E402
 
@@ -114,6 +115,49 @@ def test_phy_list():
           first["url"] == "https://phy.jlu.edu.cn/info/1052/7388.htm", first["url"])
 
 
+def test_oa_list():
+    """OA 电子校务平台：服务端渲染的 div.li 列表，时间是「今天 / 昨天 / 绝对日期」"""
+    from sources import oa
+
+    html = fixture("oa_179577.html")
+    fixed = time.localtime(time.mktime((2026, 11, 17, 12, 0, 0, 0, 0, -1)))
+    items = oa.parse_oa_list(html, "179577", now=fixed)
+    check("OA：一页解析出 30 条", len(items) == 30, len(items))
+    first = items[0]
+    check("OA：今天 → 当天日期", first["date"] == "2026-11-17", first["date"])
+    check("OA：相对时间的时分也留着", first["time"] == "10:39", first["time"])
+    check("OA：昨天 → 前一天（18 条）",
+          sum(1 for i in items if i["date"] == "2026-11-16") == 18,
+          sum(1 for i in items if i["date"] == "2026-11-16"))
+    check("OA：绝对日期原样保留", items[-1]["date"] == "2026-11-13", items[-1]["date"])
+    check("OA：详情链接绝对化且带 channelId",
+          first["url"] == ("http://oa.jlu.edu.cn/defaultroot/PortalInformation!"
+                           "getInformation.action?id=72089970&channelId=179577"),
+          first["url"])
+    check("OA：标题干净", first["title"].startswith("第十七届全国大学生电子商务"), first["title"][:16])
+    check("OA：发布单位取自 column 链接", first["org"] == "商学与管理学院", first["org"])
+    check("OA：板块名自动识别", oa.channel_name(html) == "校内通知", oa.channel_name(html))
+    check("OA：去重键 oa:<id>（同一条挂两个板块只推一次）",
+          first["dedupe_key"] == "oa:72089970", first["dedupe_key"])
+    check("OA：切块不被页头 class=link_r 干扰",
+          len(oa.split_blocks(html)) == 30, len(oa.split_blocks(html)))
+    check("OA：第 2 页链接照 OA 自己的写法拼",
+          oa.list_url("179578", 2)
+          == "http://oa.jlu.edu.cn/defaultroot/PortalInformation!jldxList.action"
+             "?1=1&channelId=179578&startPage=2",
+          oa.list_url("179578", 2))
+    check("OA：没配 channel_id 时明确报错",
+          "channel_id" in _fetch_error(oa, {"name": "OA·测试"}))
+
+
+def _fetch_error(module, source):
+    try:
+        module.fetch(source, {"timeout": 1, "retries": 0})
+    except Exception as exc:            # noqa: BLE001 - 测试只关心错误文案
+        return str(exc)
+    return ""
+
+
 TRAP_HTML = """
 <ul class="list-text">
   <li>
@@ -176,6 +220,46 @@ def test_detail_time():
 
 # ---------------------------------------------------------------- 存储
 
+def test_filters():
+    """降噪闸门：过期 / 噪音词 / 单源刷屏，以及「超额不丢，进汇总」"""
+    today = (2026, 11, 17)
+    items = [
+        {"id": "1", "source": "OA·校内通知", "title": "新通知A", "date": "2026-11-17"},
+        {"id": "2", "source": "OA·校内通知", "title": "新通知B", "date": "2026-11-16"},
+        {"id": "3", "source": "OA·校内通知", "title": "新通知C", "date": "2026-11-16"},
+        {"id": "4", "source": "OA·校内通知", "title": "旧通知", "date": "2026-11-10"},
+        {"id": "5", "source": "OA·校内通知", "title": "设备招标公告", "date": "2026-11-17"},
+        {"id": "6", "source": "本科生院", "title": "别的新通知", "date": "2026-11-17"},
+        {"id": "7", "source": "本科生院", "title": "没有日期", "date": ""},
+    ]
+    cfg = {"push": {"max_age_days": 3, "per_source_limit": 2,
+                    "title_skip_keywords": ["招标"]}}
+    kept, hidden = filters.select_pushable(items, cfg, today=today)
+    ids = [i["id"] for i in kept]
+    check("降噪：每个源最多留 per_source_limit 条", ids == ["1", "2", "6", "7"], ids)
+    check("降噪：过期通知被隐藏",
+          [i["id"] for i in hidden if i["_drop"] == "stale"] == ["4"],
+          [i["id"] for i in hidden])
+    check("降噪：噪音词被隐藏",
+          [i["id"] for i in hidden if i["_drop"] == "noisy"] == ["5"],
+          [i["id"] for i in hidden])
+    check("降噪：超额条目不算隐藏（留给当日汇总）", len(hidden) == 2, len(hidden))
+    check("降噪：解析不出日期的不误杀", "7" in ids)
+    check("降噪：刚好 N 天前不算过期", filters.is_stale("2026-11-14", 3, today) is False)
+    check("降噪：N+1 天前才算过期", filters.is_stale("2026-11-13", 3, today) is True)
+    check("降噪：max_age_days=0 时关闭过期判断",
+          filters.is_stale("2020-01-01", 0, today) is False)
+    loose, loose_hidden = filters.select_pushable(
+        items, {"push": {"max_age_days": 0, "per_source_limit": 0}}, today=today)
+    check("降噪：两个开关都设 0 = 原样放行",
+          len(loose) == len(items) and loose_hidden == [], (len(loose), loose_hidden))
+    check("降噪：死链只认 404 / 410",
+          filters.is_dead(404) and filters.is_dead(410)
+          and not filters.is_dead(200) and not filters.is_dead(0))
+    alive, dead = filters.drop_dead_links(items[:2], {"push": {"max_items": 8}}, limit=0)
+    check("降噪：limit=0 时不联网抽检", dead == [] and len(alive) == 2)
+
+
 def test_store():
     tmp = tempfile.mkdtemp(prefix="jlu-notify-test-")
     store = Store(os.path.join(tmp, "test.db"))
@@ -198,6 +282,21 @@ def test_store():
         history = [{"title": "历史通知", "url": "https://y.jlu.edu.cn/info/1/9.htm", "date": "2026-01-01"}]
         check("存储：基线模式不产生待推送",
               store.add_items("源C", history, baseline=True) == [] and store.pending_count() == 0)
+
+        # OA：同一条通知同时挂在校内通知和学生天地，URL 里 channelId 不同 → dedupe_key 兜住
+        one = store.add_items("OA·校内通知", [
+            {"title": "同一条", "url": "http://oa.jlu.edu.cn/x?id=1&channelId=179577",
+             "date": "2026-11-17", "dedupe_key": "oa:1"}])
+        two = store.add_items("OA·学生天地", [
+            {"title": "同一条", "url": "http://oa.jlu.edu.cn/x?id=1&channelId=179578",
+             "date": "2026-11-17", "dedupe_key": "oa:1"}])
+        check("存储：dedupe_key 让跨板块的同一条只算一次",
+              len(one) == 1 and two == [], (len(one), two))
+        store.hide_items([item["id"] for item in one])
+        between = store.items_between(now_ts() - 60, now_ts() + 60)
+        check("存储：隐藏的条目不会再出现在当日汇总里",
+              not ({item["id"] for item in one} & {item["id"] for item in between}),
+              len(between))
 
         store.touch_source("源A", ok=True, count=2)
         check("存储：刚抓过的源 5 分钟内不到期", store.is_due("源A", 300) is False)
@@ -332,6 +431,17 @@ def test_sources_config():
           srcs[0]["level"] == "B" and srcs[0]["enabled"] is True)
     check("配置：缺 name 时自动补", srcs[1]["name"] == "源2", srcs[1]["name"])
 
+    # discover.py --write 是「重新生成」，但不能把手工维护的 OA 源删掉
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"sources": [
+            {"name": "OA·校内通知", "url": "http://oa.jlu.edu.cn/x", "type": "oa",
+             "channel_id": "179577", "enabled": True},
+            {"name": "手工源", "url": "https://c.jlu.edu.cn/xwtz/tzgg.htm", "enabled": False},
+        ]}, f, ensure_ascii=False)
+    check("配置：discover 重写时保住非 site 源（OA 四板块）",
+          [s["name"] for s in discover.keep_manual_sources(path)] == ["OA·校内通知"],
+          discover.keep_manual_sources(path))
+
 
 def test_unit_name():
     """发现器从首页 title 榨单位名：脏数据不能变成「（重要）吉林」"""
@@ -458,9 +568,9 @@ def test_wxpusher_channel():
 
 def main():
     tests = (test_school_list, test_jwc_list, test_chem_list, test_xsc_list,
-             test_phy_list, test_date_trap, test_nav_filter, test_table_layout,
-             test_detail_time, test_store, test_message, test_digest,
-             test_quiet_hours,
+             test_phy_list, test_oa_list, test_date_trap, test_nav_filter,
+             test_table_layout, test_detail_time, test_store, test_filters,
+             test_message, test_digest, test_quiet_hours,
              test_truncate, test_sources_config, test_unit_name,
              test_wxpusher_channel)
     for test in tests:

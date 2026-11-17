@@ -4,26 +4,34 @@
 不用装 App、不用交学号密码、不自动登录 —— 就是一份低频只读的轮询脚本 + 三个可选推送通道。
 
 ```
-校内栏目页 (92 个)  →  按块解析  →  SQLite 按 URL 去重  →  合并成 1 条  →  企微群 + 微信
+OA 四个板块 + 校内栏目页  →  按块解析  →  SQLite 去重  →  降噪  →  合并成 1 条  →  企微群 + 微信
 ```
 
 ## 它做什么
 
 | 能力 | 说明 |
 | --- | --- |
-| 覆盖全校 | 学校机构设置页的 118 个单位站点，自动测出 **92 个**可解析的「通知公告」栏目 |
+| 主力是 OA | 电子校务平台（`oa.jlu.edu.cn`）的**校内通知 / 学生天地 / 校内快讯 / 教学信息** 四个板块，服务端渲染、免登录，30 条/页 |
+| 兜底覆盖 | 学校机构设置页的 118 个单位站点里，自动测出 92 个可解析的「通知公告」栏目（`sources.json` 里默认只开 4 个 A 级源，其余留着一键启用） |
 | 多通道 | 企业微信群机器人（20 条/分，无日上限）、WxPusher（SPT 极简 / appToken 标准）、PushPlus，互不影响 |
-| 不重复 | 以详情页 URL 为唯一键，同一条通知被三个站点转载也只推一次 |
+| 不重复 | 以详情页 URL / OA 条目 id 为唯一键，同一条通知被三个站点转载也只推一次 |
 | 不轰炸 | 首次运行只建基线不推送；多条合并成一条；23:30–07:00 不打扰，早上合并补发 |
-| 分级轮询 | A 级（学校通知/本科生院/你的学院）5 分钟，B 级（其余院系）30 分钟 |
+| 有降噪 | 过期条目、噪音关键词、死链（404/410）直接丢弃；每个源每轮最多推 4 条，其余进晚间汇总 |
+| 分级轮询 | A 级（OA 四个板块/学校通知/本科生院）5 分钟，B 级（其余院系）30 分钟 |
 | 直连校内 | 强制 `ProxyHandler({})`，绕过 Clash / TUN 的 fake-ip，不需要配 NO_PROXY |
 
 ## 覆盖范围（2026-11 实测）
 
 - 学校机构设置页列出 **118** 个单位站点，其中 **109 个公网可直连**；
   余下 9 个（`bmb cw jgdw jjw lab sjc xinfang xyk zzb`）只能内网访问或已下线。
-- 109 个可直连站点里 **92 个**的通知栏目能解析出条目，`sources.json` 就是这 92 个源
-  （91 个站点源默认启用 + 1 个默认停用的内网 OA 源）。
+- 109 个可直连站点里 **92 个**的通知栏目能解析出条目，全部记在 `sources.json` 里
+  （95 条记录 = 4 个 OA 板块 + 91 个站点源；默认启用 8 个：4 个 OA + 4 个公网 A 级）。
+  其余 87 个站点源都在文件里，把 `"enabled": false` 改回 `true` 就能启用。
+- **主力换成了 OA**：`oa.jlu.edu.cn` 的电子校务平台有 4 个板块
+  （`channelId` = 179577 校内通知 / 179578 学生天地 / 179579 校内快讯 / 179581 教学信息），
+  列表页是服务端渲染的 `div.li` 块，免登录、30 条/页，日期只写「今天/昨天/前天」
+  或 `2026-11-13`，详情链接 `PortalInformation!getInformation.action?id=<id>&channelId=<ch>`。
+  OA 是内网源，只能由校园网那台机器抓（见下文「OA 怎么跑」）。
 - 剩下 17 个站点首页是纯 JS 渲染（如图书馆），HTML 里没有列表，暂时抓不到。
 - 吉大几乎所有单位站点都是**博达建站系统**，通知栏目统一叫 `tzgg`，
   所以一个通用解析器就能覆盖绝大多数站点，不需要给每个学院写爬虫。
@@ -128,6 +136,10 @@ python3 cli.py stats            # 看库里有多少条
 | `python3 cli.py digest` | 立刻发一份今天的汇总（不受 22:30 限制） |
 | `python3 cli.py digest --date 2026-11-15` | 补看/补发某一天的汇总 |
 | `python3 discover.py --write` | 重新发现全部通知栏目（联网，约 1 分钟） |
+| `python3 oa_check.py` | 摸 OA 四个板块：要不要登录、板块叫什么、抓到几条（只读，不改任何东西） |
+| `python3 oa_check.py --write-sources --save-fixtures` | 把板块名写回 `sources.json`，同时把页面存成离线夹具 |
+| `python3 oa_watch.py --status` | 确认这台机器能不能连 OA（TCP 探测，不产生访问日志） |
+| `python3 oa_watch.py` | 校园网机器上跑一轮 OA（launchd / 计划任务每 15 分钟调） |
 | `python3 discover.py --reuse --write` | 不联网，按新规则重排一遍栏目 |
 | `python3 tests/smoke_test.py` | 夹具冒烟测试（不联网） |
 
@@ -175,7 +187,7 @@ python3 cli.py stats            # 看库里有多少条
     "level_a_minutes": 5,     // A 级源轮询间隔
     "level_b_minutes": 30,    // B 级源轮询间隔
     "quiet_hours": ["23:30", "07:00"],   // 免打扰，支持跨零点；留空不静音
-    "max_run_seconds": 240
+    "max_run_seconds": 240    // 单轮时间上限：到点还没轮上的源本轮跳过（不算失败）
   },
   "push": {
     "merge": true,            // 多条合并成一条（关掉逐条推会被风控限流）
@@ -183,7 +195,11 @@ python3 cli.py stats            # 看库里有多少条
     "max_chars": 1800,
     "title_prefix": "吉大通知",
     "first_run_baseline_only": true,
-    "max_per_run": 60
+    "max_per_run": 60,
+    "max_age_days": 3,        // 发布日期早于「今天-N 天」的丢弃，0=不限（治旧通知乱推）
+    "per_source_limit": 4,    // 每个源每轮最多推几条，0=不限；超额的不丢，进 22:30 汇总
+    "title_skip_keywords": [],// 标题含这些词就丢，例 ["招标","采购","中标","讣告"]
+    "check_links": true       // 发之前 HEAD 抽检，404/410 的丢掉；连不上不算死链
   },
   "digest": {
     "enabled": true,          // 每天固定时间再发一条「当日全部通知」汇总
@@ -382,31 +398,68 @@ pkg install python && cd ~/jlu-notify && python3 cli.py run --loop
 ```
 `--loop` 按 `level_a_minutes` 自己控节奏，进程常驻即可。
 
-## 关于 OA（校内办公网）
+## OA 怎么跑（主力源）
 
-`oa.jlu.edu.cn` 解析到 `10.100.18.18`，**纯内网地址**，校外（Wi-Fi、5G、Clash 全局）一律连不上。
-手机企微能收到 OA 待办，是因为它走腾讯企微自己的内网应用代理，脚本无法复用那条通道。
+`oa.jlu.edu.cn` 解析到 `10.100.18.18`，**纯内网地址**：GitHub Actions 在公网永远连不上，
+校外 Wi-Fi / 5G 也不行。所以分工是：
 
-两条路：
+- **校园网那台机器**（宿舍小主机、实验室值班机、常开的笔记本）跑 `oa_watch.py`，负责 4 个 OA 板块；
+- **GitHub Actions** 只管公网源 —— workflow 里设了 `JLU_NOTIFY_SKIP_CAMPUS=1`，
+  `cli.py` 会自动跳过 `"needs_campus": true` 的源，不会每轮 4 个源全失败。
 
-1. **校内常亮设备**（宿舍小主机、树莓派、实验室值班机）跑本程序 —— 最省事，直接通；
-2. **先在校内探一次结构**（结构未知之前绝不臆造解析规则）：
+### 第一次部署（只做一遍）
 
 ```bash
-pip3 install playwright && python3 -m playwright install chromium
-python3 probe_oa.py          # 手动登录 OA，按回车，脚本 dump 列表页结构
-python3 cli.py run --source "OA 办公网" --dry-run
+python3 oa_watch.py --status          # 1. 这台机器能不能连 OA（TCP 探测）
+python3 oa_check.py                   # 2. 摸四个板块：要登录吗？板块叫什么？抓到几条？
+python3 oa_check.py --write-sources --save-fixtures   # 3. 板块名写回 sources.json + 存离线夹具
+python3 oa_watch.py --dry-run         # 4. 抓一轮看看（首次建基线，不会响手机）
 ```
 
-`probe_oa.py` 把列表页存成 `data/oa_dump.html`，`sources/oa.py` 会优先读这个 dump。
-拿到真实 DOM 后，把 `sources.json` 里 OA 那条 `"enabled": true` 即可。
+`oa_check.py` 第 2 步的输出就是结论：四个板块都显示「免登录 + 30 条」就可以直接跑；
+显示 `HTTP 403` / 跳登录页，就走下面的「需要登录怎么办」。
+
+### 挂到定时任务
+
+```bash
+# cron 每 15 分钟一次（A 级 5 分钟对云端公网源有意义，OA 用 15 分钟足够）
+*/15 * * * * cd ~/jlu-notify && /usr/bin/python3 oa_watch.py >> data/oa_watch.log 2>&1
+```
+
+`oa_watch.py` 先做一次 TCP 探测：连不上就 `exit 0` 静默退出（出门用 4G 时不会刷红），
+连得上才 `cli.py run --once --force --source "OA·…"`，只跑 OA 的那几个源。
+
+### 需要登录怎么办
+
+用 `login_once.py` 手动登录一次存 cookie，再给源加一行
+`"cookie_file": "data/oa_session.json"`，`sources/oa.py` 会带上这个 Cookie 请求头。
+**不**自动登录、**不**绕验证码。
+
+### 四个板块是怎么抓的
+
+列表页 `PortalInformation!jldxList.action?channelId=<ch>`，服务端渲染、30 条/页，
+翻页是 `?1=1&channelId=<ch>&startPage=2`。单条的 DOM：
+
+```html
+<DIV class="li rel"><I></I>
+  <A class="font14" href="PortalInformation!getInformation.action?id=72089970&channelId=179577">标题</A>
+  ... <A class="column" href="...">商学与管理学院</A>
+  ... <SPAN class="time">今天&nbsp;&nbsp; 10:39</SPAN>
+</DIV>
+```
+
+时间只有「今天 / 昨天 / 前天 / 2026-11-13」三种写法，前两种按本地日期换算。
+踩过的坑：切块不能按 class 前缀匹配 `div.li`（页头有 `class="link_r"`，会多切出假块），
+必须用 `\bli\b`；所以不要拿 `probe_oa.py` 那套 Playwright 的思路重写 —— 当初用无头浏览器
+是因为结构未知，现在用 urllib + 正则就够，不用装 Chromium。
 
 ## 请求量与礼貌
 
-- 默认 92 个源、A 级 5 分钟 / B 级 30 分钟 → 平均**每分钟 3~4 个请求**，
+- 默认启用 8 个源（4 个 OA 板块 + 4 个公网 A 级），OA 每源抓 2 页（60 条），
+  一轮约 12 个请求；校园网机器 15 分钟一轮、云端 15 分钟一轮 → 平均**每分钟不到 2 个请求**，
   比一个新闻页自动刷新还轻。
 - 每个请求前随机 sleep 0~1.5 秒，`workers` 默认 4，不形成尖峰。
-- 只抓列表页，**不抓详情页正文**（详情链接已经够点进去了），流量极小。
+- 只抓列表页，**不抓详情页正文**；只有 `check_links` 会对「本轮真要发的 ≤8 条」做一次 HEAD。
 - 全量 `discover.py` 约 600 个请求，是一次性操作，明确不放进定时任务。
 
 ## 合规红线
@@ -420,22 +473,57 @@ python3 cli.py run --source "OA 办公网" --dry-run
 
 ```
 jlu-notify/
-├── cli.py            命令行：run / test-push / list-sources / stats
+├── cli.py            命令行：run / test-push / list-sources / stats / digest
 ├── discover.py       一次性发现全校通知栏目，生成 sources.json
-├── probe_oa.py       校内网探 OA 结构（手动登录）
+├── oa_check.py       摸 OA 四个板块（免登录？板块名？条数？）+ 写回 sources.json
+├── oa_watch.py       校园网侧守护：连得上 OA 才跑一轮，连不上静默退出
+├── probe_oa.py       早期探针（Playwright，结构未知时用；现在不必要）
 ├── login_once.py     需要登录的源：保存会话 cookie
-├── parser.py         列表页解析（五种真实 DOM + 表格兜底）
-├── store.py          SQLite：URL 去重、基线、游标、待推送队列
+├── filters.py        降噪闸门：过期 / 噪音词 / 单源限流 / 死链
+├── parser.py         列表页解析（五种真实 DOM + 表格兜底 + 标题长度治理）
+├── store.py          SQLite：URL 去重、基线、游标、待推送队列、隐藏标记
 ├── notifier.py       合并消息、免打扰、通道熔断、分发
 ├── common.py         urllib 直连、重试、日志、UTF-8 安全截断
 ├── config.py         配置加载与校验
 ├── channels/         wecom / wxpusher / pushplus
-├── sources/          site（通用博达栏目）/ oa（内网）
-├── tests/            夹具冒烟测试（93 项，不联网）
+├── sources/          site（通用博达栏目）/ oa（OA 四板块，channelId 驱动）
+├── iphone/           纯手机方案：oa.js（浏览器里跑）+ build_shortcut.py + 签好的快捷指令
+├── tests/            夹具冒烟测试（132 项，不联网）
 ├── .github/workflows/ notify.yml（定时推送）、test-push.yml（手动测试推送）、test.yml（push 时跑测试）
-├── sources.json      92 个源（进仓库，只有公开地址）
+├── sources.json      95 条源（4 个 OA + 91 个站点，进仓库，只有公开地址）
 └── data/             notify.db、通道状态、dump（gitignore）
 ```
+
+## 手机端：iPhone 快捷指令（不依赖服务器）
+
+OA 那四个板块要登录态，云端 IP 抓不到；校内服务器又不可能 24 小时开着。所以给 OA 单独做了一条纯手机路线：
+
+**原理**：快捷指令里放一个「在活跃的 Safari 标签页中运行 JavaScript」动作，脚本在**已经登录 WebVPN 的 Safari 页面**里跑，用页面自身的 cookie 去 fetch 四个板块，解析完直接调 wxpusher 接口推微信。会话、跨域、令牌全在浏览器里解决，不需要任何后端。
+
+**用法**（一次性配置，之后就是一个按钮）：
+
+1. 双击 `iphone/OA通知.shortcut` 导入（已签名，iOS 15+ 可直接添加）；
+2. iPhone 上 Safari 登录一次 `vpn.jlu.edu.cn`（勾「记住设备」，能撑很久）；
+3. 点「OA通知」→ 第一次只记基线不推送，之后有新通知直接进微信。
+
+**跑起来但一条没推？** 看快捷指令最后弹出的文字：
+
+| 弹窗 | 含义 |
+|---|---|
+| `✅ 首次运行，已记住 120 条作为基线` | 正常，之后只推新的 |
+| `没有新通知（共查 120 条）` | 正常，四个板块都抓到了 |
+| `⚠️ VPN 或 OA 登录已过期` | Safari 里的 WebVPN 会话掉了，重登一次 |
+| `❌ 微信推送失败` | 网络问题，没记已读，下次会重试 |
+
+**改脚本后要重新签名**（`shortcuts sign` 需要 macOS，只在改代码时用一次）：
+
+```bash
+python3 iphone/build_shortcut.py      # 生成 + 签名，产出 iphone/OA通知.shortcut
+```
+
+脚本主体在 `iphone/oa.js`，改完重跑上面这条命令、把新文件 Airdrop 到手机重新导入即可。
+已读记录存在 Safari 的 `localStorage['oa_seen_v1']`（上限 3000 条），只有推送成功才写，
+所以推送失败不会丢通知。
 
 ## 加一个自己的源
 

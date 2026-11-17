@@ -2,6 +2,46 @@
   "generated_at": "2026-11-16 11:19:46",
   "sources": [
     {
+      "name": "OA·校内通知",
+      "url": "http://oa.jlu.edu.cn/defaultroot/PortalInformation!jldxList.action?channelId=179577",
+      "level": "A",
+      "type": "oa",
+      "channel_id": "179577",
+      "pages": 2,
+      "needs_campus": true,
+      "enabled": true
+    },
+    {
+      "name": "OA·179578",
+      "url": "http://oa.jlu.edu.cn/defaultroot/PortalInformation!jldxList.action?channelId=179578",
+      "level": "A",
+      "type": "oa",
+      "channel_id": "179578",
+      "pages": 2,
+      "needs_campus": true,
+      "enabled": true
+    },
+    {
+      "name": "OA·179579",
+      "url": "http://oa.jlu.edu.cn/defaultroot/PortalInformation!jldxList.action?channelId=179579",
+      "level": "A",
+      "type": "oa",
+      "channel_id": "179579",
+      "pages": 2,
+      "needs_campus": true,
+      "enabled": true
+    },
+    {
+      "name": "OA·179581",
+      "url": "http://oa.jlu.edu.cn/defaultroot/PortalInformation!jldxList.action?channelId=179581",
+      "level": "A",
+      "type": "oa",
+      "channel_id": "179581",
+      "pages": 2,
+      "needs_campus": true,
+      "enabled": true
+    },
+    {
       "name": "党委学生工作部（处）",
       "url": "https://xsc.jlu.edu.cn/index/tzgg.htm",
       "level": "A",
@@ -34,350 +74,350 @@
       "url": "https://nasa.jlu.edu.cn/kxyj1/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "东区事务办公室",
       "url": "https://dqswb.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "交通学院",
       "url": "https://jt.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "人力资源处",
       "url": "https://rsgl.jlu.edu.cn/tzdt.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "人工智能学院",
       "url": "https://sai.jlu.edu.cn/zytz/xytz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "仪器科学与电气工程学院",
       "url": "https://ciee.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "体育学院",
       "url": "https://pe.jlu.edu.cn/xytz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "保卫处",
       "url": "https://bwc.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "党委宣传部",
       "url": "https://xcb.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "党委巡视工作办公室",
       "url": "https://dwxcb.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "党委教师工作部",
       "url": "https://jsgzb.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "公共卫生学院",
       "url": "https://sph.jlu.edu.cn/ggwgz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "公共外交学院",
       "url": "https://sipa.jlu.edu.cn/dqgz/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "共青团委员会",
       "url": "https://youth.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "创新创业教育学院",
       "url": "https://cxcyjyxy.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "动物医学学院",
       "url": "https://dwyx.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "动物科学学院",
       "url": "https://dwkx.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "化学学院",
       "url": "https://chem.jlu.edu.cn/xwtz/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "医院管理处",
       "url": "https://ywc.jlu.edu.cn/xyggwsgl1.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "卓越工程师学院",
       "url": "https://ees.jlu.edu.cn/xwdt/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "博士后（新）",
       "url": "https://bsh.jlu.edu.cn/index/tzkx.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "历史文化学院",
       "url": "https://hac.jlu.edu.cn/xwgg/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "发展规划处",
       "url": "https://dev.jlu.edu.cn/ggdt/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "口腔医院",
       "url": "https://jdkq.jlu.edu.cn/xwzx/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "后勤处",
       "url": "https://hqc.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "和平校区办公网",
       "url": "https://hp.jlu.edu.cn/tztg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "哲学社会学院",
       "url": "https://zsy.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "商学与管理学院",
       "url": "https://sg.jlu.edu.cn/grhz/ggpx.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "国家教材建设重点研究基地（高等学校理学教",
       "url": "https://nrcem.jlu.edu.cn/xwtz/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "国际合作与交流处",
       "url": "https://oic.jlu.edu.cn/zytg1/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "国际教育学院",
       "url": "https://cie.jlu.edu.cn/ggtz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "地球探测科学与技术研究",
       "url": "https://gest.jlu.edu.cn/xytz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "地球科学学院",
       "url": "https://geo.jlu.edu.cn/xsgz/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "地质博物馆",
       "url": "https://gmuseum.jlu.edu.cn/zczl/ztzl.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "地质调查研究院",
       "url": "https://ddy.jlu.edu.cn/tzkx.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "基础医学院",
       "url": "https://medicine.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "基础设施建设办公室",
       "url": "https://jjb.jlu.edu.cn/bmxw/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "外国语言文化学院",
       "url": "https://sflc.jlu.edu.cn/yjsgz/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "大数据和网络管理中心",
       "url": "https://nic.jlu.edu.cn/tzkx.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "妇女网",
       "url": "https://fwh.jlu.edu.cn/ggxx.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "学生心理健康指导中心",
       "url": "https://psy.jlu.edu.cn/xwzx/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "工程训练中心",
       "url": "https://gcxl.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "建设工程学院",
       "url": "https://const.jlu.edu.cn/yntz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "护理学院",
       "url": "https://hlxy.jlu.edu.cn/dqgz/ggw.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "政策与法规办公室",
       "url": "https://zcyfg.jlu.edu.cn/sylm/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "教师教学发展中心",
       "url": "https://ctld.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "数学学院",
       "url": "https://math.jlu.edu.cn/xxgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "文学院",
       "url": "https://wxy.jlu.edu.cn/xwgg/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "文学院（国际语言学院）",
       "url": "https://gjyyxy.jlu.edu.cn/xytz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "新能源与环境学院",
       "url": "https://cer.jlu.edu.cn/bksjy/jxdtytz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "新闻中心网站",
@@ -391,21 +431,21 @@
       "url": "https://mae.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "材料科学与工程学院",
       "url": "https://dmse.jlu.edu.cn/gjjl/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "校医院",
       "url": "https://xyy.jlu.edu.cn/zxtz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "档案馆",
@@ -419,232 +459,225 @@
       "url": "https://zky.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "汽车工程学院",
       "url": "https://auto.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "法学院",
       "url": "https://law.jlu.edu.cn/kxyj1/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "物理学院",
       "url": "https://phy.jlu.edu.cn/xzgz/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "生命科学学院",
       "url": "https://life.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "生物与农业工程学院",
       "url": "https://cbae.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "电子科学与工程学院",
       "url": "https://ee.jlu.edu.cn/bkjy/jwgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "白求恩医学部",
       "url": "https://jdyxb.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "研究生招生信息网",
       "url": "https://yzb.jlu.edu.cn/gatzs.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "社会科学研究院",
       "url": "https://hssra.jlu.edu.cn/tzgg1.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "离退休工作处 离退休党委",
       "url": "https://ltxc.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "科学技术协会",
       "url": "https://ast.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "科研院",
       "url": "https://kjc.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "科研院科技开发办公室（国内合作处）",
       "url": "https://kjkfzx.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "经济学院",
       "url": "https://jjxy.jlu.edu.cn/gzdt/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "经营性资产改革和管理办公室",
       "url": "https://jgb.jlu.edu.cn/ygtz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "继续教育管理办公室",
       "url": "https://jjglb.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "综合极端条件高压科学中心",
       "url": "https://lvpecf.jlu.edu.cn/index/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "考古与艺术博物馆",
       "url": "https://aamuseum.jlu.edu.cn/tzkx/tz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "考古学院",
       "url": "https://kgxy.jlu.edu.cn/bksjx/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "艺术学院",
       "url": "https://art.jlu.edu.cn/xwgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "药学院",
       "url": "https://yxy.jlu.edu.cn/dqgz/ggwgz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "计算机科学与技术学院",
       "url": "https://ccfe.jlu.edu.cn/gong/zxtz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "计算机科学与技术学院（ccst）",
       "url": "https://ccst.jlu.edu.cn/kxyj/kytz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "资产管理处",
       "url": "https://zcgl.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "软件学院",
       "url": "https://csw.jlu.edu.cn/index/xytz_.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "通信工程学院",
       "url": "https://dce.jlu.edu.cn/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "长白山实验室",
       "url": "https://cbslab.jlu.edu.cn/xwzx/tzgg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "附属学校管理办公室",
       "url": "https://pjb.jlu.edu.cn/tzzx.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "预科教育学院",
       "url": "https://ykjy.jlu.edu.cn/xytz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "食品科学与工程学院",
       "url": "https://spxy.jlu.edu.cn/tztg.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "马克思主义学院",
       "url": "https://marx.jlu.edu.cn/xxgk/gstz.htm",
       "level": "B",
       "type": "site",
-      "enabled": true
-    },
-    {
-      "name": "OA 办公网",
-      "url": "http://oa.jlu.edu.cn/",
-      "level": "A",
-      "type": "oa",
-      "enabled": false,
-      "_comment": "内网源：先在校内跑 probe_oa.py，再把 enabled 改成 true"
+      "enabled": false
     }
-  ]
+  ],
+  "_comment": "主力是前面 4 个 OA 板块（oa.jlu.edu.cn，只有校园网能访问，由 oa_watch.py 在校园网机器上抓）；后面 4 个公网 A 级源给 GitHub Actions 兜底。其余 80 多个单位站点全部 enabled=false 保留着，想加回来把 true 改回去即可。板块名用 python3 oa_check.py --write-sources 自动改正。"
 }

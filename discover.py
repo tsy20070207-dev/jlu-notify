@@ -307,6 +307,8 @@ def main(argv=None):
 
     if args.write:
         sources, multi = build_sources(records, args.min_count, args.all_columns)
+        kept = keep_manual_sources()          # OA 四板块不是 discover 的产物，先捞回来
+        sources = kept + sources
         a_level = sum(1 for s in sources if s["level"] == "A")
         if not args.dry_run:
             save_json(pj("sources.json"), {"generated_at": ts_text(), "sources": sources})
@@ -320,6 +322,24 @@ def main(argv=None):
             for unit, count in multi:
                 log("  {} 有 {} 个栏目".format(unit, count), "DEBUG")
     return 0
+
+
+def keep_manual_sources(path=None):
+    """保住 sources.json 里手工维护的非 site 源（OA 那四个板块）。
+
+    --write 是「重新生成」，但这些源根本不是 discover 的产物（内网、按 channel_id 配的），
+    直接覆盖会把主力源悄悄删掉，所以先原样捞回来、放在列表最前面。
+    """
+    raw = load_json(path or pj("sources.json"), {}) or {}
+    items = raw.get("sources") if isinstance(raw, dict) else raw
+    kept = []
+    for item in items or []:
+        if isinstance(item, dict) and str(item.get("type") or "site").lower() != "site":
+            kept.append(item)
+    if kept:
+        log("保留 {} 个手工维护的源（type != site）：{}".format(
+            len(kept), "、".join(str(s.get("name")) for s in kept)))
+    return kept
 
 
 if __name__ == "__main__":

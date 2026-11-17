@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS items (
     date        TEXT,
     first_seen  INTEGER NOT NULL,
     pushed      INTEGER NOT NULL DEFAULT 0,
-    baseline    INTEGER NOT NULL DEFAULT 0
+    baseline    INTEGER NOT NULL DEFAULT 0,
+    hidden      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_items_pending ON items(pushed, first_seen);
 CREATE INDEX IF NOT EXISTS idx_items_source  ON items(source, first_seen);
@@ -65,6 +66,11 @@ class Store(object):
             upgraded = True
         except sqlite3.OperationalError:
             pass
+        # 降噪丢掉的条目：pushed=1 且 hidden=1 —— 不进队列，也不进当日汇总
+        try:
+            self.conn.execute("ALTER TABLE items ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         if upgraded:
             # 补列后老数据全是 baseline=0 —— 但「每个源的第一批」其实就是当初建基线的那批
             # （同一批共享同一个 first_seen，且都 pushed=1）。不回溯标记的话，升级当天
@@ -89,7 +95,9 @@ class Store(object):
 
     @staticmethod
     def item_id(item, source=""):
-        key = (item.get("url") or "").strip()
+        # dedupe_key 优先：OA 同一条通知会同时挂在校内通知和学生天地，URL 里的
+        # channelId 不同但 id 相同，用 "oa:<id>" 才能跨板块只推一次。
+        key = (item.get("dedupe_key") or item.get("url") or "").strip()
         if not key:
             key = "{}|{}".format(source, item.get("title") or "")
         return sha1(key)[:20]
@@ -135,7 +143,7 @@ class Store(object):
         不排除的话当天汇总会莫名多出几十条旧通知。
         """
         rows = self.conn.execute(
-            "SELECT * FROM items WHERE baseline=0 AND first_seen>=? AND first_seen<? "
+            "SELECT * FROM items WHERE baseline=0 AND hidden=0 AND first_seen>=? AND first_seen<? "
             "ORDER BY first_seen ASC, date DESC LIMIT ?",
             (int(start_ts), int(end_ts), int(limit)),
         ).fetchall()
@@ -158,6 +166,21 @@ class Store(object):
             return 0
         marks = ",".join("?" * len(ids))
         cur = self.conn.execute("UPDATE items SET pushed=1 WHERE id IN ({})".format(marks), ids)
+        self.conn.commit()
+        return cur.rowcount
+
+    def hide_items(self, ids):
+        """标记成「已推送 + 隐藏」：降噪丢掉的条目（过期 / 噪音词 / 死链）。
+
+        不删记录：删了下一轮抓同一页又会当成新条目重新入队；hidden 保证它既不再
+        进推送队列，也不会在 22:30 的当日汇总里复活。
+        """
+        ids = [i for i in (ids or []) if i]
+        if not ids:
+            return 0
+        marks = ",".join("?" * len(ids))
+        cur = self.conn.execute(
+            "UPDATE items SET pushed=1, hidden=1 WHERE id IN ({})".format(marks), ids)
         self.conn.commit()
         return cur.rowcount
 

@@ -23,6 +23,9 @@ jobs:
     env:
       # 关键：runner 默认 UTC，不设时区的话免打扰 23:30-07:00 会错成北京时间 07:30-15:00
       TZ: Asia/Shanghai
+      # OA 那 4 个板块只有校园网能访问（oa.jlu.edu.cn → 10.100.18.18），云端跳过它们，
+      # 交给校园网机器上的 oa_watch.py；不跳的话每轮 4 个源必失败，整轮会被判成运行失败。
+      JLU_NOTIFY_SKIP_CAMPUS: "1"
     steps:
       - name: 取代码
         uses: actions/checkout@v4
